@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lesson.title }} - {{ language.name }} Reader{% endblock %}
+
+{% block content %}
+    {# Pass language ID to JS for API calls #}
+    <div class="app-container" data-language-id="{{ language.id }}">
+        <!-- Left Pane: Text Reader and Video Player -->
+        <div class="left-pane">
+            {# Remove grammar header #}
+            <div id="video-player-container" data-youtube-url="{{ lesson.youtube_url if lesson.youtube_url else '' }}">
+                <!-- YouTube Player will be embedded here by JS -->
+                <p>(Media Player Area)</p> 
+            </div>
+
+            {# Remove grammar data attributes #}
+            <div id="text-container" 
+                 data-lesson-id="{{ lesson.id }}"
+                 data-raw-text="{{ lesson.text_content | escape }}">
+                 <h2>{{ lesson.title }}</h2> {# Restore title #}
+                <!-- Placeholder for JS-parsed text -->
+                <div id="parsed-text-area">
+                    <p><i>Loading text...</i></p> 
+                </div>
+                <!-- Pagination Controls -->
+                <div id="pagination-controls" style="text-align: center; padding: 10px; display: flex; justify-content: center; align-items: center; margin-top: 10px; flex-shrink: 0;"> 
+                    <button id="repeat-page-btn" title="Repeat Page">&#x21BB;</button>
+                    <button id="prev-page-btn" disabled>&lt; Prev</button>
+                    <span id="page-info">Page 1 of 1</span>
+                    <button id="next-page-btn" disabled>Next &gt;</button>
+                    <button id="repeat-sentence-btn" title="Repeat Sentence">&#x27F3;</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Pane: Dictionary and Word Editor -->
+        <div class="right-pane">
+            {# Grammar Notes Button REMOVED from here #}
+            
+            <div id="dictionary-results">
+                <h3>Dictionary</h3>
+                <div id="dict-content">
+                    <p><i>Click a word to look it up.</i></p>
+                </div>
+            </div>
+
+            <div id="word-editor">
+                <h3>Edit Term</h3>
+                <div id="editor-content" style="display: none;">
+                    <p><strong>Term:</strong> <span id="editor-term">-</span></p>
+                    <p><strong>Status:</strong> <span id="editor-status">-</span></p>
+                    
+                    <div class="status-selector">
+                        <button class="status-btn" data-status="1">1</button>
+                        <button class="status-btn" data-status="2">2</button>
+                        <button class="status-btn" data-status="3">3</button>
+                        <button class="status-btn" data-status="4">4</button>
+                        <button class="status-btn" data-status="5">5</button>
+                        <button class="status-btn" data-status="6">Known</button>
+                        <button class="status-btn" data-status="7">Ignored</button>
+                    </div>
+                    
+                    <br>
+                    <label for="edit-translation">Translation:</label><br>
+                    <textarea id="edit-translation" rows="3"></textarea><br>
+                    <button id="save-translation">Save Translation</button>
+                </div>
+                <div id="editor-placeholder" style="display: block;">
+                    <p><i>Click a word to edit its status or translation.</i></p>
+                </div>
+            </div>
+
+            {# Grammar Notes Button MOVED here #}
+            <div class="grammar-notes-control border-top">
+                 <a href="{{ url_for('view_grammar_notes', lesson_id=lesson.id) }}"
+                    class="btn btn-secondary w-100"> {# Changed class for better style #}
+                    View Grammar Notes
+                 </a>
+            </div>
+            {# End Grammar Notes Button #}
+
+        </div>
+    </div>
+
+    {# Remove grammar modal #}
+
+    {# New script tag for timestamps data #}
+    <script type="application/json" id="timestamps-data">
+        {{ lesson.timestamps | safe if lesson.timestamps and lesson.timestamps|length > 0 else "null" }}
+    </script>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Call the main initialization function from script.js
+    if (typeof initializeReader === 'function') {
+        initializeReader(); 
+    } else {
+        console.error("initializeReader function not found. Ensure script.js loaded correctly and defines initializeReader globally.");
+        const textContainer = document.getElementById('parsed-text-area');
+        if(textContainer) textContainer.innerHTML = '<p class="text-danger">Error initializing reader script.</p>';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grammar Notes: {{ item_title }}</title>
+    {# Basic styles for side-by-side view #}
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+        }
+        .container {
+            display: flex;
+            height: 100vh; /* Full viewport height */
+            padding: 15px;
+            box-sizing: border-box;
+            gap: 15px; /* Space between columns */
+        }
+        .column {
+            flex: 1; /* Each column takes half the space */
+            background-color: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto; /* Enable vertical scroll if content overflows */
+        }
+        .column h2 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            font-size: 1.4em;
+        }
+        .plain-text-content {
+            white-space: pre-wrap; /* Preserve line breaks from original text */
+            font-size: 1.1em; /* Slightly larger for readability */
+        }
+        /* Basic Markdown styling */
+        .grammar-notes-content h3 {
+             margin-top: 1.5em;
+             border-bottom: 1px solid #eee;
+             padding-bottom: 5px;
+        }
+        .grammar-notes-content code {
+            background-color: #e9ecef;
+            padding: 0.1em 0.4em;
+            border-radius: 3px;
+        }
+        .grammar-notes-content blockquote {
+            border-left: 3px solid #ced4da;
+            padding-left: 10px;
+            margin-left: 0;
+            color: #6c757d;
+        }
+    </style>
+    {# Include marked.js for rendering Markdown #}
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="column" id="text-column">
+            <h2>Text: {{ item_title }} ({{ language_name }})</h2>
+            <div class="plain-text-content">{{ plain_text }}</div>
+        </div>
+        <div class="column" id="notes-column">
+            <h2>Grammar Notes</h2>
+            <div class="grammar-notes-content" id="grammar-notes-output">
+                {# Grammar notes will be inserted here #}
+            </div>
+        </div>
+    </div>
+
+    {# Hidden div to hold the raw Markdown summary #}
+    <div id="raw-grammar-summary" style="display: none;">{{ grammar_summary | safe }}</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const rawSummary = document.getElementById('raw-grammar-summary').textContent;
+            const outputDiv = document.getElementById('grammar-notes-output');
+            
+            if (outputDiv) {
+                if (typeof marked === 'function') {
+                    // Render the Markdown summary
+                    outputDiv.innerHTML = marked.parse(rawSummary || 'No grammar summary available.');
+                } else {
+                    console.error("marked.js not loaded.");
+                    // Fallback to plain text
+                    const pre = document.createElement('pre');
+                    pre.textContent = rawSummary || 'No grammar summary available.';
+                    outputDiv.innerHTML = '';
+                    outputDiv.appendChild(pre);
+                }
+            } else {
+                console.error("Output div for grammar notes not found.");
+            }
+        });
+    </script>
+</body>
+</html> 

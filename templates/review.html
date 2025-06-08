@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Review {{ language.name }} - FluentMind{% endblock %}
+
+{% block content %}
+<div class="review-page-content" style="max-width: 600px; margin: 20px auto; text-align: center; padding: 20px; border: 1px solid #ccc; border-radius: 8px;">
+    <nav class="breadcrumbs" style="text-align: left; margin-bottom: 15px;">
+        <a href="{{ url_for('dashboard') }}">Dashboard</a> &gt;
+        <a href="{{ url_for('language_lessons', lang_name=language.name.lower()) }}">{{ language.name }}</a> &gt;
+        Review
+    </nav>
+
+    <h2>Reviewing {{ language.name }}</h2>
+
+    <div id="review-area">
+        <div id="flashcard" class="card status-0" style="min-height: 150px; padding: 20px; margin-bottom: 20px; border-radius: 5px; background-color: #eee; position: relative; transition: background-color 0.3s ease;">
+            <div id="card-front" style="font-size: 1.8em; margin-bottom: 10px;">
+                <!-- Term will be shown here -->
+                <span id="term-display">Loading...</span>
+            </div>
+            <div id="card-back" style="display: none;">
+                <!-- Translation will be shown here -->
+                <p style="font-size: 1.2em;" id="translation-display">-</p>
+                <!-- Context Sentence -->
+                <p id="context-sentence-display" style="font-size: 0.9em; color: #555; margin-top: 15px;">
+                    <!-- Context sentence will be shown here -->
+                </p>
+                <!-- Optional: Add context/sentence later -->
+            </div>
+            <div id="card-status-indicator" style="position: absolute; top: 5px; right: 10px; font-size: 0.8em; color: #555;">
+                Status: <span id="status-number">?</span>
+            </div>
+        </div>
+
+        <div id="controls">
+            <div id="show-answer-div">
+                <button id="show-answer-btn" class="btn btn-primary">Show Answer</button>
+            </div>
+            <div id="rating-buttons-div" style="display: none;">
+                <button class="btn btn-rating" data-rating="again" style="background-color: #dc3545; color: white;">Again (1d)</button>
+                <button class="btn btn-rating" data-rating="hard" style="background-color: #ffc107;">Hard</button>
+                <button class="btn btn-rating" data-rating="good" style="background-color: #28a745; color: white;">Good</button>
+                <button class="btn btn-rating" data-rating="easy" style="background-color: #17a2b8; color: white;">Easy</button>
+            </div>
+        </div>
+
+        <div id="progress-indicator" style="margin-top: 15px; font-size: 0.9em; color: #666;">
+            Card <span id="current-card-num">0</span> of <span id="total-cards-num">0</span>
+        </div>
+
+         <div id="session-complete" style="display: none; margin-top: 20px; padding: 15px; background-color: #d4edda; border-color: #c3e6cb; color: #155724; border-radius: 5px;">
+            <strong>Review session complete!</strong>
+            <p><a href="{{ url_for('dashboard') }}">Back to Dashboard</a></p>
+        </div>
+         <div id="no-cards-message" style="display: none; margin-top: 20px; padding: 15px; background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; border-radius: 5px;">
+            <strong>No cards due for review in {{ language.name }} right now!</strong>
+            <p><a href="{{ url_for('language_lessons', lang_name=language.name.lower()) }}">Go to Lessons</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const languageId = {{ language.id }};
+        const reviewArea = document.getElementById('review-area');
+        const flashcard = document.getElementById('flashcard');
+        const cardFront = document.getElementById('card-front');
+        const termDisplay = document.getElementById('term-display');
+        const cardBack = document.getElementById('card-back');
+        const translationDisplay = document.getElementById('translation-display');
+        const statusNumber = document.getElementById('status-number');
+        const showAnswerDiv = document.getElementById('show-answer-div');
+        const showAnswerBtn = document.getElementById('show-answer-btn');
+        const ratingButtonsDiv = document.getElementById('rating-buttons-div');
+        const ratingButtons = document.querySelectorAll('.btn-rating');
+        const progressIndicator = document.getElementById('progress-indicator');
+        const currentCardNum = document.getElementById('current-card-num');
+        const totalCardsNum = document.getElementById('total-cards-num');
+        const sessionCompleteDiv = document.getElementById('session-complete');
+        const noCardsMessageDiv = document.getElementById('no-cards-message');
+
+        let reviewCards = [];
+        let currentCardIndex = 0;
+
+        async function fetchReviewCards() {
+            try {
+                const response = await fetch(`/api/review/${languageId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+                reviewCards = data.review_cards || [];
+                currentCardIndex = 0;
+                totalCardsNum.textContent = reviewCards.length;
+
+                if (reviewCards.length > 0) {
+                    displayCard();
+                    noCardsMessageDiv.style.display = 'none';
+                    reviewArea.style.display = 'block';
+                } else {
+                    // No cards to review
+                    reviewArea.style.display = 'none';
+                    noCardsMessageDiv.style.display = 'block';
+                    sessionCompleteDiv.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error fetching review cards:', error);
+                termDisplay.textContent = 'Error loading cards.';
+                // Display error message to user
+            }
+        }
+
+        function displayCard() {
+            if (currentCardIndex >= reviewCards.length) {
+                showSessionComplete();
+                return;
+            }
+
+            const card = reviewCards[currentCardIndex];
+            termDisplay.textContent = card.term;
+            translationDisplay.textContent = card.translation || '(No translation)';
+            statusNumber.textContent = card.status;
+            // Display context sentence if available
+            const contextDisplay = document.getElementById('context-sentence-display');
+            if (contextDisplay) {
+                contextDisplay.textContent = card.context_sentence || ''; 
+                contextDisplay.style.display = card.context_sentence ? 'block' : 'none'; // Show/hide based on presence
+            }
+
+            // Update card background color based on status
+            flashcard.className = `card status-${card.status}`; // Reset classes and add current status
+
+            cardBack.style.display = 'none';
+            ratingButtonsDiv.style.display = 'none';
+            showAnswerDiv.style.display = 'block';
+
+            currentCardNum.textContent = currentCardIndex + 1;
+        }
+
+        function showAnswer() {
+            cardBack.style.display = 'block';
+            showAnswerDiv.style.display = 'none';
+            ratingButtonsDiv.style.display = 'block';
+        }
+
+        async function sendRating(rating) {
+            if (currentCardIndex >= reviewCards.length) return;
+
+            const card = reviewCards[currentCardIndex];
+            const termId = card.id;
+
+            // Disable buttons while processing
+            ratingButtons.forEach(btn => btn.disabled = true);
+
+            try {
+                const response = await fetch('/api/review/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Add CSRF token header if needed later
+                    },
+                    body: JSON.stringify({ term_id: termId, rating: rating })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log('Update successful:', result);
+
+                // Move to next card
+                currentCardIndex++;
+                displayCard();
+
+            } catch (error) {
+                console.error('Error updating review card:', error);
+                alert(`Error updating card: ${error.message}`);
+                // Handle error display
+            } finally {
+                // Re-enable buttons
+                 ratingButtons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function showSessionComplete() {
+            reviewArea.style.display = 'none';
+            sessionCompleteDiv.style.display = 'block';
+        }
+
+        // Event Listeners
+        showAnswerBtn.addEventListener('click', showAnswer);
+
+        ratingButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const rating = this.getAttribute('data-rating');
+                sendRating(rating);
+            });
+        });
+
+        // Initial fetch
+        fetchReviewCards();
+
+    });
+</script>
+{% endblock %} 

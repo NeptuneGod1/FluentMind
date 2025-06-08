@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - FluentMind{% endblock %}
+
+{% block content %}
+<div class="stats-page-content" style="padding: 30px; max-width: 900px; margin: 0 auto;">
+    <h2>Word Statistics</h2>
+
+    <div class="language-selector" style="margin-bottom: 20px;">
+        <label for="lang-select">Select Language:</label>
+        <select id="lang-select" name="lang_id">
+            {% for lang in languages %}
+                <option value="{{ lang.id }}" {% if lang.id == selected_lang_id %}selected{% endif %}>
+                    {{ lang.name }}
+                </option>
+            {% else %}
+                <option value="">-- No languages added --</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="chart-container" style="position: relative; height:40vh; width:80vw; max-width: 800px; margin: auto;">
+        <canvas id="statsChart"></canvas>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }} {# Optional: Include scripts from base.html if needed #}
+<!-- Include Chart.js library (CDN example) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // --- Chart Configuration ---
+    const statusLabels = [
+        'Unknown (0)', 'Learning (1)', 'Learning (2)', 'Learning (3)', 
+        'Learning (4)', 'Learning (5)', 'Known (6)', 'Ignored (7)'
+    ];
+    
+    // Match colors from style.css (adjust if necessary)
+    const statusColors = [
+        '#a0d4ff', // Unknown (Blue)
+        '#ffaaaa', // Level 1 (Red)
+        '#ffd966', // Level 2 (Orange)
+        '#ffff99', // Level 3 (Yellow)
+        '#c0f0c0', // Level 4 (Light Green)
+        '#98fb98', // Level 5 (Green)
+        'rgba(0, 0, 0, 0.1)', // Known (Light Grey/Transparent-ish)
+        '#adb5bd'  // Ignored (Grey)
+    ];
+    
+    const ctx = document.getElementById('statsChart').getContext('2d');
+    let statsChart = null; // Variable to hold the chart instance
+
+    function createOrUpdateChart(chartData) {
+        const dataCounts = statusLabels.map((_, index) => chartData[index] || 0);
+
+        if (statsChart) {
+            // Update existing chart
+            statsChart.data.labels = statusLabels;
+            statsChart.data.datasets[0].data = dataCounts;
+            statsChart.data.datasets[0].backgroundColor = statusColors;
+            statsChart.update();
+        } else {
+            // Create new chart
+            statsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: statusLabels,
+                    datasets: [{
+                        label: 'Unique Words',
+                        data: dataCounts,
+                        backgroundColor: statusColors,
+                        borderColor: statusColors.map(color => color.replace('a(','rgba(').replace(')',', 0.8)')), // Add slight border
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Word Count' }
+                        },
+                        x: {
+                             title: { display: true, text: 'Word Status' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false // Hide legend as colors/labels are clear
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // --- Data Fetching and Event Handling ---
+    const langSelect = document.getElementById('lang-select');
+
+    async function fetchAndUpdateChart(languageId) {
+        if (!languageId) {
+            console.log("No language selected.");
+            // Optionally clear the chart or show a placeholder
+             if (statsChart) {
+                 statsChart.data.datasets[0].data = statusLabels.map(() => 0); // Set data to zeros
+                 statsChart.update();
+             }
+            return;
+        }
+        console.log(`Fetching stats for language ID: ${languageId}`);
+        try {
+            // Display a simple loading indicator
+            if (statsChart) {
+                // You could replace the chart area or overlay a message
+                // For simplicity, just log it for now
+                 console.log("Loading stats..."); 
+            }
+            
+            const response = await fetch(`/api/stats/${languageId}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            const data = await response.json();
+            console.log("Received stats data:", data);
+            createOrUpdateChart(data);
+        } catch (error) {
+            console.error('Error fetching or parsing stats data:', error);
+            // Display an error message to the user
+            alert('Could not load statistics for this language.');
+             // Optionally clear chart on error
+             if (statsChart) {
+                 statsChart.data.datasets[0].data = statusLabels.map(() => 0);
+                 statsChart.update();
+             }
+        } finally {
+             // Hide loading indicator here if you implemented one
+             console.log("Finished loading attempt.");
+        }
+    }
+
+    // Initial chart load (using pre-loaded data if available, or fetch)
+    // Modifying to prefer API fetch for consistency and easier state handling
+    const initialLangId = langSelect.value;
+    
+    // Remove the reliance on stats_json passed directly for initial load
+    // const initialStatsJson = {{ stats_json|safe if stats_json else 'null' }};
+    // if (initialStatsJson) {
+    //     console.log("Using initial pre-loaded stats data.");
+    //     createOrUpdateChart(initialStatsJson);
+    // } else if (initialLangId) {
+    
+    if (initialLangId) {
+         console.log("Fetching initial stats via API.");
+         fetchAndUpdateChart(initialLangId); // Fetch on initial load
+    } else {
+         console.log("No initial language selected.");
+         createOrUpdateChart({}); // Initialize empty chart
+    }
+
+
+    // Update chart when language selection changes
+    langSelect.addEventListener('change', (event) => {
+        const selectedId = event.target.value;
+        fetchAndUpdateChart(selectedId);
+        
+        // Optional: Update URL query parameter without reloading page
+        if (history.pushState) {
+             const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?lang_id=' + selectedId;
+             window.history.pushState({path:newUrl}, '', newUrl);
+        }
+    });
+
+</script>
+{% endblock %} 

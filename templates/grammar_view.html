@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Grammar Notes - {{ lesson.title }}{% endblock %}
+
+{% block content %}
+<div class="mb-3" style="padding: 1rem;">
+    <a href="{{ url_for('reader', lang_name=language.name, lesson_id=lesson.id) }}" class="btn btn-outline-secondary btn-sm">
+        &larr; Back to Reader
+    </a>
+</div>
+
+<h1 style="padding: 0 1rem;">{{ lesson.title }} - Grammar Notes</h1>
+<hr style="margin: 1rem;">
+
+<div class="row" style="display: flex; flex-wrap: wrap; padding: 0 1rem;">
+    <div class="col-md-6">
+        <h2>Lesson Text</h2>
+        {# Display plain text content without word spans #}
+        <div style="white-space: pre-wrap; font-size: 1.1rem; line-height: 1.6; border: 1px solid #eee; padding: 15px; max-height: 70vh; overflow-y: auto;">
+            {{ lesson.text_content }}
+        </div>
+    </div>
+    <div class="col-md-6">
+        <h2>Grammar Notes</h2>
+        {# Apply pre-wrap style and let JS handle Markdown rendering #}
+        <div id="grammar-notes-content" style="white-space: pre-wrap; border: 1px solid #eee; padding: 15px; max-height: 70vh; overflow-y: auto;">
+            {# Embed raw content within a hidden script tag for robust JS retrieval #}
+            <script id="raw-grammar-data" type="application/json">
+                {{ grammar_summary | tojson }}
+            </script>
+            {# Placeholder text will be overwritten by JS #}
+            <p><i>Loading grammar notes...</i></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# Add Marked.js library for Markdown rendering #}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const grammarContentDiv = document.getElementById('grammar-notes-content');
+        const rawDataScriptTag = document.getElementById('raw-grammar-data');
+
+        if (grammarContentDiv && rawDataScriptTag) {
+            try {
+                // Parse the JSON content from the script tag
+                const rawContent = JSON.parse(rawDataScriptTag.textContent || 'null');
+
+                if (rawContent) {
+                    // Use marked to parse the Markdown content into HTML
+                    grammarContentDiv.innerHTML = marked.parse(rawContent);
+                } else {
+                    // Display placeholder if summary is empty/null
+                    grammarContentDiv.innerHTML = '<p><i>No grammar notes available for this lesson.</i></p>';
+                }
+            } catch (e) {
+                console.error("Error parsing grammar data:", e);
+                grammarContentDiv.innerHTML = '<p class="text-danger">Error loading grammar notes.</p>';
+            }
+        } else {
+             if (grammarContentDiv) {
+                // Fallback if script tag wasn't found for some reason
+                 grammarContentDiv.innerHTML = '<p><i>Could not load grammar data source.</i></p>';
+             }
+        }
+    });
+</script>
+{% endblock %} 
