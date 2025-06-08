@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}{{ language_name }} Lessons - Modern LWT{% endblock %}
+
+{% block content %}
+    <!-- Optional: Could add a language-specific banner here -->
+    <!-- <div id="banner" class="language-banner"> ... </div> -->
+
+    <div class="lesson-page-content">
+        <nav class="breadcrumbs">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a> &gt; {{ language_name }}
+        </nav>
+        
+        <h2>{{ language_name }} Lessons</h2>
+
+        <div class="lesson-cards-container">
+            {# Loop through lessons, render only if lesson is valid #}
+            {% for lesson in lessons %}
+                {% if lesson and lesson.id %}
+                    <div class="lesson-card">
+                        <a href="{{ url_for('reader', lang_name=language_name.lower(), lesson_id=lesson.id) }}" class="card-overlay-link"></a>
+                        
+                        <!-- Image Area -->
+                        <div class="lesson-card-image" 
+                             {% if lesson.image_filename %}
+                                 style="background-image: url('{{ url_for('static', filename='uploads/' + lesson.image_filename) }}');"
+                                 data-bg-position="center"
+                             {% else %}
+                                 style="background-color: #eee;"
+                             {% endif %}>
+                            {% if lesson.image_filename %}
+                            <div class="image-controls" onclick="event.preventDefault(); event.stopPropagation();">
+                                <button class="reposition-btn" title="Reposition Image" onclick="event.preventDefault(); event.stopPropagation();">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="reposition-overlay" style="display: none;" onclick="event.preventDefault(); event.stopPropagation();">
+                                <div class="reposition-instructions">Click and drag to reposition image</div>
+                                <button class="save-position-btn">Save Position</button>
+                                <button class="cancel-position-btn">Cancel</button>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <!-- Content Area -->
+                        <div class="lesson-card-content">
+                            <h3>{{ lesson.title }}</h3>
+                            <!-- Stats Section -->
+                            <div class="lesson-stats">
+                                <!-- Level Tag (like A1/A2 in image) -->
+                                <span class="level-tag {{ lesson.language.level or '' }}">{{ lesson.language.level or 'N/A' }}</span> 
+                                <!-- Word Count (Placeholder for stats line) -->
+                                <span class="word-count">{{ lesson.word_count }} words</span> 
+                            </div>
+                            <!-- Progress Bar Area -->
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" style="width: 0%;"></div> <!-- Placeholder -->
+                            </div>
+                            <span class="progress-percent">--%</span> <!-- Placeholder -->
+                        </div>
+                        <!-- Action Buttons (Keep placeholder for now) -->
+                        <div class="lesson-card-actions-placeholder" style="position: absolute; top: 5px; right: 5px;">
+                             <a href="{{ url_for('edit_lesson_form', lesson_id=lesson.id) }}" class="btn-edit btn-small" title="Edit Lesson">✎</a>
+                             <form action="{{ url_for('delete_lesson', lesson_id=lesson.id) }}" method="post" class="delete-lesson-form" 
+                                   style="display: inline;"
+                                   onsubmit="return confirm('Are you sure you want to delete lesson: {{ lesson.title | tojson }}?');">
+                                 <button type="submit" class="btn-delete btn-small">&times;</button>
+                             </form>
+                        </div>
+                    </div>
+                {% endif %} {# End the condition for valid lesson #}
+            {% else %}
+                <p>No lessons found for {{ language_name }}.</p>
+            {% endfor %}
+
+            <!-- "Add New Lesson" Card -->
+            <a href="{{ url_for('add_lesson_form', lang_id=language_id) }}" class="lesson-card-link add-lesson-card-link">
+                <div class="lesson-card add-lesson-card">
+                    <div class="add-lesson-icon">+</div>
+                    <h3>Add New Lesson</h3>
+                </div>
+            </a>
+
+        </div>
+
+        <!-- Removed Add Lesson Button -->
+        <!-- <a href="#" class="add-lesson-btn">+ Add New Lesson</a> -->
+
+    </div>
+{% endblock %} 

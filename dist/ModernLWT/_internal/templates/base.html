@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Use a block for the title so child templates can set it -->
+    <title>{% block title %}Modern LWT{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Add other common head elements here if needed -->
+</head>
+<body>
+    <!-- Reverted Nav to original position -->
+    <nav class="main-nav">
+        <ul>
+            <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('stats') }}">Statistics</a></li>
+            <li><a href="{{ url_for('review_select_language') }}">Review</a></li>
+            <li><a href="{{ url_for('settings') }}">Settings</a></li>
+            <!-- Add more links later -->
+        </ul>
+    </nav>
+
+    <!-- Flashed messages back between nav and main -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category or 'info' }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Reverted main class -->
+    <main class="content-area">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <!-- Optional footer content -->
+        <p>&copy; 2025 Modern LWT</p>
+    </footer>
+
+    <!-- Common scripts can go here, specific ones in child templates -->
+    <script src="{{ url_for('static', filename='js/image_reposition.js') }}"></script>
+    
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html> 

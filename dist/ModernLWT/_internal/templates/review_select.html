@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Select Language for Review - Modern LWT{% endblock %}
+
+{% block content %}
+<div class="review-select-page" style="padding: 30px; max-width: 800px; margin: 0 auto;">
+    <h2>Select Language to Review</h2>
+
+    {% if languages %}
+        <ul style="list-style: none; padding: 0;">
+            {% for lang in languages %}
+                <li style="margin-bottom: 15px; padding: 15px; background-color: #fff; border: 1px solid #eee; border-radius: 5px;">
+                    <a href="{{ url_for('review_language', lang_id=lang.id) }}" style="text-decoration: none; font-size: 1.2em; color: #0d6efd;">
+                        {{ lang.name }}
+                    </a>
+                    {# Optional: Display due count if calculated in route #}
+                    <span style="font-size: 0.9em; color: #6c757d; margin-left: 10px;">
+                        ({{ lang.due_review_count or 0 }} due)
+                    </span> 
+                    {# #}
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No languages added yet. Add a language via Settings before you can review.</p>
+        <a href="{{ url_for('settings') }}">Go to Settings</a>
+    {% endif %}
+
+</div>
+{% endblock %} 
