@@ -56,7 +56,7 @@ body {
 /* Remove or comment out the old .word:hover if we don't want the grey background */
 /*
 .word:hover {
-    background-color: #e0e0e0; 
+    background-color: #e0e0e0;
 }
 */
 
@@ -116,13 +116,13 @@ body {
 }
 
 /* Hover effects - subtle brightness change? */
-.word-unknown:hover, 
-.word-level-1:hover, 
-.word-level-2:hover, 
-.word-level-3:hover, 
-.word-level-4:hover, 
+.word-unknown:hover,
+.word-level-1:hover,
+.word-level-2:hover,
+.word-level-3:hover,
+.word-level-4:hover,
 .word-level-5:hover {
-    filter: brightness(95%); 
+    filter: brightness(95%);
 }
 
 .word-known:hover {
@@ -133,23 +133,23 @@ body {
 /* Remove the old status styles */
 /*
 .word-unknown {
-    text-decoration: underline dotted #ccc; 
+    text-decoration: underline dotted #ccc;
 }
 .word-learning {
-    background-color: #fcf8e3; 
+    background-color: #fcf8e3;
     border-radius: 3px;
 }
 .word-known {
-    text-decoration: none; 
+    text-decoration: none;
 }
 .word-ignored {
-    color: #ccc; 
+    color: #ccc;
     text-decoration: none;
 }
 .word-learning:hover,
 .word-known:hover,
 .word-ignored:hover {
-    background-color: inherit; 
+    background-color: inherit;
 }
 */
 
@@ -710,7 +710,7 @@ body {
     background-size: cover;
     background-position: center;
     position: relative; /* Add relative positioning for the child button */
-    /* border-bottom: 1px solid #eee; /* Optional separator - remove if content padding is enough */ */
+    /* border-bottom: 1px solid #eee; Optional separator - remove if content padding is enough */
     /* Style for the placeholder state (when no background-image is set via inline style) */
     background-color: #f8f9fa; /* Use a very light grey for placeholder */
     display: flex; /* Needed to center the span */
@@ -903,13 +903,6 @@ body {
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
     pointer-events: none; /* Prevent tooltip from interfering with mouse events */
 }
-
-/* Function to hide the tooltip */
-function hideTooltip() {
-    if (definitionTooltip) {
-        definitionTooltip.style.display = 'none';
-    }
-} 
 
 /* --- Settings Page Specific Styles --- */
 .settings-page-content {
@@ -1495,4 +1488,167 @@ footer p {
     -moz-transform: scale(0.75); /* Firefox compatibility */
     -moz-transform-origin: top left; /* Firefox compatibility */
 }
+
+/* --- Modal Styling (Generic) --- */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto; /* 15% from the top and centered */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more responsive */
+    max-width: 500px; /* Max width for readability */
+    border-radius: 8px; /* Rounded corners */
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19); /* Subtle shadow */
+    animation-name: animatetop; /* Add animation */
+    animation-duration: 0.4s;
+}
+
+/* Add Animation */
+@keyframes animatetop {
+    from {top: -300px; opacity: 0}
+    to {top: 15%; opacity: 1}
+}
+
+.close-button {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close-button:hover,
+.close-button:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-buttons button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+}
+
+.modal-buttons button#save-offset-btn {
+    background-color: #0d6efd; /* Bootstrap primary blue */
+    color: white;
+}
+
+.modal-buttons button:hover {
+    opacity: 0.9;
+}
+
+#offset-input {
+    width: calc(100% - 20px); /* Adjust width considering padding */
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    font-size: 1em;
+}
+
+/* Original styles that were misplaced */
+.lesson-paragraph {
+    margin-bottom: 0.7em;
+    line-height: 1.6;
+    transition: background-color 0.3s ease;
+}
+
+.lesson-paragraph.current-segment {
+    background-color: rgba(255, 255, 0, 0.1);
+    border-left: 3px solid #ffd700;
+    padding-left: 10px;
+}
+
+.timestamp-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    margin: 0 4px;
+    background-color: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #495057;
+    transition: all 0.2s ease;
+}
+
+.timestamp-badge:hover {
+    background-color: #007bff;
+    color: white;
+    border-color: #0056b3;
+}
+
+.current-segment {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-left: 3px solid #007bff;
+    padding-left: 10px;
+    transition: all 0.3s ease;
+}
+
+footer {
+    text-align: center;
+    padding: 5px 0; /* Reduced vertical padding */
+    margin-top: auto; /* Push footer to the bottom */
+    background-color: #e9ecef; /* Light grey background */
+    border-top: 1px solid #dee2e6; /* Separator line */
+    color: #6c757d; /* Slightly darker grey text */
+    font-size: 0.85em; /* Smaller font size */
+}
+
+footer p {
+    margin-bottom: 0; /* Remove default paragraph bottom margin */
+}
+
+/* End Grammar Notes Button */
+
+.grammar-notes-control {
+    margin-top: 10px;
+    margin-bottom: 10px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+#dictionary-results h3,
+#word-editor h3 {
+    font-size: 1.05em; /* Adjusted font size slightly, keeping it prominent */
+    font-weight: bold; /* Ensure titles remain bold */
+    margin-top: 0; 
+    margin-bottom: 10px;
+}
+
+#dict-content {
+    font-size: 0.8em; /* Reduced font size for dictionary content */
+    zoom: 0.75; /* Further zoom out content by 25% */
+    -moz-transform: scale(0.75); /* Firefox compatibility */
+    -moz-transform-origin: top left; /* Firefox compatibility */
+}
+
+/* --- General Modal Styles (Existing, ensure no conflict) --- */
+/* The .modal styles were duplicated within other sections earlier. */
+/* Ensure these are the primary definitions for .modal, .modal-content, etc. */
+/* The previous edit added these correctly at the end. */
+/* Removing the redundant ones here if they were copied back in. */
 

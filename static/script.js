@@ -22,7 +22,7 @@ const statusClasses = {
 
 // --- Global Variables ---
 let currentLanguageId = null;
-let currentLessonId = null;
+let currentLessonId = null; // Re-add this global declaration
 let vocabCache = {}; // Simple cache for word statuses
 let currentEditorTerm = null; // Store term currently in editor
 let multiwordTermsCache = []; // Cache for known multi-word terms
@@ -36,108 +36,169 @@ let allParsedElements = []; // NEW: Stores the original, full parsed text elemen
 let pageInfo = []; // NEW: Stores { firstGlobalParagraphIndex: X } for each page
 const ELEMENTS_PER_PAGE = 300; // Adjust this number as needed
 
-// --- Video Sync Functions ---
+// --- Media Player Sync Variables ---
 let timestamps = null;
+let syncInterval = null; // Interval for updating current segment
+let html5Player = null; // Global variable for HTML5 player (video or audio)
+let playerActive = false; // Flag to indicate if any player is actively syncing
 
 // --- Repeat Functionality Variables ---
-let currentRepeatMode = null; // 'page', 'sentence', or null
 let repeatLoopInterval = null;
+let currentRepeatMode = null; // 'page', 'sentence', or null
 let repeatLoopStartTime = 0;
 let repeatLoopEndTime = 0;
 
+// --- Timestamp Offset Variable ---
+let timestampOffset = 0; // Global offset in seconds for all timestamps
+console.log("Global timestampOffset initialized to:", timestampOffset);
+
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("Reader loaded.");
+    console.log("Reader loaded: DOMContentLoaded event fired.");
     initializeReader();
-    initializeMediaPlayer();
+    // initializeMediaPlayer(); // This is now handled within initializeReader based on media type
     initializeEditorButtons(); // Add this call
     createTooltipElement(); // Create tooltip div on initialization
-    initializeRepeatControls(); // NEW: Initialize repeat buttons
+    initializeRepeatControls(); // Initialize repeat buttons
+    initializeTimestampAdjustment(); // Initialize timestamp adjustment modal
 });
 
 function initializeReader() {
-    console.log("Initializing Reader...");
-
-    // Get lesson and language IDs from the data attributes
-    const appContainer = document.querySelector('.app-container');
-    if (!appContainer) {
-        console.error("App container not found.");
-        return; // Cannot initialize without the container
-    }
-    currentLanguageId = appContainer.dataset.languageId;
-
+    console.log("Initializing Reader: START");
     const textContainer = document.getElementById('text-container');
     if (!textContainer) {
-        console.error("Text container not found.");
-        return; // Cannot initialize without the container
+        console.error("Reader Error: Text container not found");
+        return;
     }
-    currentLessonId = textContainer.dataset.lessonId;
+
+    // Get language and lesson IDs from data attributes FIRST
+    const appContainer = document.querySelector('.app-container');
+    if (!appContainer) {
+        console.error("Reader Error: App container not found");
+        return;
+    }
+    currentLanguageId = appContainer.dataset.languageId; // Assign to global variable
+    currentLessonId = appContainer.dataset.lessonId; // Assign lesson ID to global variable
+
+    console.log("currentLessonId after assignment:", currentLessonId);
+    console.log("timestampOffset at start of initializeReader:", timestampOffset);
+
+    if (!currentLanguageId) {
+        console.error("Reader Error: Language ID not found in app container");
+        return;
+    }
+    if (!currentLessonId) {
+        console.error("Reader Error: Lesson ID not found in app container");
+        return;
+    }
+
+    // Get raw text from data attribute
     const rawText = textContainer.dataset.rawText;
-
-    if (!currentLanguageId || !currentLessonId || !rawText) {
-        console.error("Missing required data attributes on app or text container.");
-        return; // Cannot proceed without essential data
+    if (!rawText) {
+        console.error("Reader Error: Raw text not found in text container");
+        return;
     }
 
-    const parsedTextArea = document.getElementById('parsed-text-area');
-    if (!parsedTextArea) {
-         console.error("Parsed text area not found.");
-         return; // Cannot proceed without the render target
-    }
+    // Parse text into elements
+    const allParsedElements = parseText(rawText);
+    console.log("Parsed elements:", allParsedElements);
 
-    // --- 1. Parse Text ---
-    allParsedElements = parseText(rawText); // Store the full parsed list globally
-    console.log("Text parsed.", allParsedElements);
+    // Extract unique single-word terms for vocabulary lookup
+    const uniqueSingleTerms = [...new Set(allParsedElements
+        .filter(el => el.type === 'word')
+        .map(el => el.term.toLowerCase()))];
+    console.log("Unique single terms:", uniqueSingleTerms);
 
-    // NEW DEBUG: Count actual paragraphs based on newlines in rawText
-    const rawTextParagraphs = rawText.split('\n').filter(line => line.trim() !== '').length;
-    console.log("DEBUG: Raw text paragraphs count (based on newlines):", rawTextParagraphs);
-
-    // --- 2. Identify Unique Terms ---
-    const uniqueSingleTerms = [...new Set(allParsedElements.filter(p => p.type === 'word').map(p => p.term.toLowerCase()))];
-    console.log("Unique single terms identified.", uniqueSingleTerms);
-
-    // --- 3. Fetch Vocab Status (Single & Multi-word) --- 
-    console.log("Fetching vocab status and multiword terms...");
+    // Fetch vocabulary status and multiword terms in parallel
     Promise.all([
         fetchVocabStatus(currentLanguageId, uniqueSingleTerms),
         fetchMultiwordTerms(currentLanguageId)
     ])
     .then(([singleWordVocab, multiwordTerms]) => {
-        vocabCache = singleWordVocab; // Store fetched single word statuses
-        multiwordTermsCache = multiwordTerms; // Store multi-word terms
+        vocabCache = singleWordVocab;
+        multiwordTermsCache = multiwordTerms;
         console.log("Vocab status and multiword terms fetched.");
         
-        // Initialize video sync if timestamps exist - IMPORTANT: Call BEFORE pagination setup
-        console.log("Initializing video sync...");
-        initializeVideoSync(); // This populates 'timestamps' global variable
-
-        // NEW DEBUG: Log timestamps array and its length after it's populated
-        console.log("DEBUG: Initialized timestamps array:", timestamps);
-        console.log("DEBUG: timestamps.length:", timestamps ? timestamps.length : 'null');
+        // Load timestamps first
+        const timestampsScriptTag = document.getElementById('timestamps-data');
+        if (timestampsScriptTag) {
+            const timestampsJson = timestampsScriptTag.textContent;
+            if (timestampsJson && timestampsJson.trim() !== '' && timestampsJson.trim().toLowerCase() !== 'null') {
+                try {
+                    timestamps = JSON.parse(timestampsJson);
+                    console.log("Timestamps loaded successfully:", timestamps);
+                } catch (e) {
+                    console.error("Error parsing timestamps JSON:", e);
+                    timestamps = null;
+                }
+            }
+        }
         
-        // --- Setup Pagination if needed ---
-        // Now use allParsedElements for pagination setup
+        // Initialize media player if timestamps exist
+        if (timestamps && Array.isArray(timestamps) && timestamps.length > 0) {
+            const youtubeContainer = document.getElementById('video-player-container');
+            const html5MediaElement = document.getElementById('html5-player');
+
+            if (youtubeContainer && youtubeContainer.dataset.youtubeUrl) {
+                console.log("Initializing YouTube video sync...");
+                initializeVideoSync();
+            } else if (html5MediaElement && html5MediaElement.src) {
+                console.log("Initializing HTML5 player sync...");
+                initializeHtml5PlayerSync();
+            } else {
+                console.log("No supported media player found with timestamps available, skipping media sync initialization.");
+            }
+        } else {
+            console.log("No timestamps available, skipping media sync initialization.");
+        }
+        
+        // Setup pagination
         const needsPagination = allParsedElements.length > ELEMENTS_PER_PAGE;
         if (needsPagination) {
             console.log("Setting up pagination.");
-            setupPagination(allParsedElements); // Pass the full list
+            setupPagination(allParsedElements);
         } else {
             console.log("No pagination needed.");
-            pagedElements = [allParsedElements]; // Treat as a single page
-            pageInfo = [{ firstGlobalParagraphIndex: 0 }]; // Add default pageInfo
+            pagedElements = [allParsedElements];
+            pageInfo = [{ firstGlobalParagraphIndex: 0 }];
             totalPages = 1;
         }
         
-        // --- Initial Render (Page 1) ---
+        // Initial render
         console.log("Rendering initial page.", currentPage);
         renderPage(currentPage); 
-
+        console.log("initializeReader main promise chain complete.");
     })
     .catch(error => {
-        console.error("Error fetching vocab status or multiword terms:", error);
-        parsedTextArea.innerHTML = '<p><i>Error loading data. Displaying plain text.</i></p>'; 
+        console.error("Error during main initialization promise chain:", error);
+        const parsedTextArea = document.getElementById('parsed-text-area');
+        if (parsedTextArea) {
+            parsedTextArea.innerHTML = '<p class="text-danger">Error loading content. Please try refreshing the page.</p>';
+        }
     });
+
+    console.log("About to fetch timestamp offset for lesson:", currentLessonId);
+    // Get the initial timestamp offset from the server
+    fetch(`/lesson/${currentLessonId}/get_offset`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.offset !== undefined && data.offset !== null) { // Add null check
+                timestampOffset = parseFloat(data.offset);
+                console.log("Loaded timestamp offset:", timestampOffset);
+            } else {
+                console.error("Failed to load offset from server or offset is invalid:", data.error || data.offset);
+                timestampOffset = 0; // Reset to 0 if loading fails
+            }
+        })
+        .catch(error => {
+            console.error("Error loading timestamp offset fetch:", error);
+        });
+    console.log("Initializing Reader: END");
 }
 
 // --- Text Parsing (Revised) ---
@@ -1289,313 +1350,91 @@ function renderPage(pageNumber) {
 
 // --- NEW: Attach Timestamp Click Listeners (Centralized) ---
 function attachTimestampClickListeners() {
+    // DEBUG: Attempting to update this function.
+    console.log("Attaching timestamp click listeners...");
     document.querySelectorAll('.timestamp-badge').forEach(badge => {
         badge.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            console.log("Timestamp badge clicked:", this.dataset.timestamp);
+            
             const ts = parseInt(this.dataset.timestamp, 10);
-            if (!isNaN(ts) && window.player) {
+            if (isNaN(ts)) {
+                console.error("Invalid timestamp value:", this.dataset.timestamp);
+                return;
+            }
+            
+            // Determine the active player
+            let activePlayer = null;
+            let getPlayerDuration = null; // Function to get duration
+            let seekPlayerTo = null;      // Function to seek
+
+            if (window.player && typeof window.player.seekTo === 'function') {
+                activePlayer = window.player;
+                getPlayerDuration = () => activePlayer.getDuration();
+                seekPlayerTo = (time) => activePlayer.seekTo(time, true);
+            } else if (html5Player && typeof html5Player.currentTime !== 'undefined') {
+                activePlayer = html5Player;
+                getPlayerDuration = () => activePlayer.duration;
+                seekPlayerTo = (time) => activePlayer.currentTime = time;
+            }
+
+            if (!activePlayer) {
+                console.error("No active media player found for timestamp click.");
+                return;
+            }
+
+            try {
                 // If sentence repeat is active, update the loop target
                 if (currentRepeatMode === 'sentence') {
                     const clickedParagraph = this.closest('.lesson-paragraph');
                     if (clickedParagraph && clickedParagraph.dataset.timestamp) {
                         const paragraphStartTime = parseInt(clickedParagraph.dataset.timestamp, 10);
                         
-                        // Find the global index of the clicked paragraph
                         const paragraphsOnPage = Array.from(document.querySelectorAll('.lesson-paragraph'));
                         const clickedParagraphIndexInPage = paragraphsOnPage.indexOf(clickedParagraph);
                         
-                        // Get the global paragraph offset for the current page
                         const currentPageInfo = pageInfo[currentPage - 1];
                         const globalParagraphOffset = currentPageInfo ? currentPageInfo.firstGlobalParagraphIndex : 0;
 
-                        const clickedParagraphGlobalIndex = globalParagraphOffset + clickedParagraphIndexInPage;
+                        const selectedParagraphGlobalIndex = globalParagraphOffset + clickedParagraphIndexInPage;
                         
                         let paragraphEndTime;
-
-                        // If there is a next global timestamp, use it as the end time
-                        if (clickedParagraphGlobalIndex + 1 < timestamps.length) {
-                            paragraphEndTime = timestamps[clickedParagraphGlobalIndex + 1].timestamp;
+                        // Option 1: If there is a next global timestamp, use it as the end time
+                        if (selectedParagraphGlobalIndex + 1 < timestamps.length) {
+                            paragraphEndTime = timestamps[selectedParagraphGlobalIndex + 1].timestamp;
                         } else {
-                            // NEW LOGIC: If it's the last timestamp but NOT the last actual paragraph in the text,
-                            // set end time to current start + a short buffer.
-                            // This handles cases where the last text paragraph doesn't have a timestamp.
-                            const totalTextParagraphs = allParsedElements.filter(el => el.type === 'separator' && el.text.includes('\n')).length + 1; // Approx paragraph count
-                            if (clickedParagraphGlobalIndex < totalTextParagraphs - 1) {
-                                // It's the last timestamped paragraph, but not the last actual paragraph of text
-                                paragraphEndTime = paragraphStartTime + 5; // Loop for 5 seconds (heuristic)
+                            // Option 2: If it's the last timestamped paragraph on the current page,
+                            // use the timestamp of the first paragraph on the next page as the end.
+                            const nextPageInfo = pageInfo[currentPage]; // currentPage is 1-indexed
+                            if (nextPageInfo && timestamps[nextPageInfo.firstGlobalParagraphIndex]) { // Ensure next page has a timestamp
+                                paragraphEndTime = timestamps[nextPageInfo.firstGlobalParagraphIndex].timestamp;
                             } else {
-                                // It's genuinely the last paragraph of the entire text
-                                paragraphEndTime = window.player.getDuration();
+                                // Option 3: It's genuinely the last paragraph of the entire text,
+                                // or no next page exists. Use player duration or a short buffer.
+                                paragraphEndTime = getPlayerDuration();
                             }
                         }
+                        
+                        // Pass the activePlayer's duration or a getter for robust calculation within toggleRepeatMode
+                        toggleRepeatMode('sentence', paragraphStartTime, paragraphEndTime, getPlayerDuration());
 
-                        // Re-trigger toggleRepeatMode with new boundaries, it will update the loop
-                        toggleRepeatMode('sentence', paragraphStartTime, paragraphEndTime);
-                        window.player.seekTo(paragraphStartTime, true); // Seek to new sentence start immediately
-                        window.player.playVideo(); // Ensure playback starts
-                        return; // Exit as repeat mode is handled
+                        // Seek to new sentence start immediately on active player
+                        seekPlayerTo(paragraphStartTime);
+                        activePlayer.play();
+                        return;
                     }
                 }
-                // Original behavior: seek and play if not in sentence repeat mode
-                window.player.seekTo(ts, true);
-                window.player.playVideo(); // Optionally play video on seek
+
+                // Regular timestamp click behavior
+                console.log("Seeking to timestamp:", ts);
+                seekPlayerTo(ts);
+                activePlayer.play();
+            } catch (error) {
+                console.error("Error handling timestamp click:", error);
             }
         });
     });
-}
-
-// --- Video Sync Functions ---
-function initializeVideoSync() {
-    console.log("initializeVideoSync started.");
-    
-    // Get timestamps from the new script tag
-    const timestampsScriptTag = document.getElementById('timestamps-data');
-    let timestampsJson = null;
-
-    if (timestampsScriptTag) {
-        timestampsJson = timestampsScriptTag.textContent;
-        console.log("initializeVideoSync: raw timestampsJson from script tag:", timestampsJson);
-    } else {
-        console.error("initializeVideoSync: timestamps-data script tag not found.");
-    }
-
-    if (timestampsJson && timestampsJson.trim() !== '' && timestampsJson.trim().toLowerCase() !== 'null') {
-        try {
-            timestamps = JSON.parse(timestampsJson);
-            console.log("initializeVideoSync: Loaded timestamps successfully:", timestamps);
-            
-            // Initialize YouTube player if URL exists
-            const videoContainer = document.getElementById('video-player-container');
-            if (videoContainer) {
-                const youtubeUrl = videoContainer.dataset.youtubeUrl;
-                console.log("initializeVideoSync: youtubeUrl data attribute value:", youtubeUrl);
-                if (youtubeUrl) {
-                    const videoId = extractYouTubeId(youtubeUrl);
-                    console.log("initializeVideoSync: Extracted YouTube ID:", videoId);
-                    if (videoId) {
-                        // Load YouTube IFrame API
-                        console.log("initializeVideoSync: Loading YouTube IFrame API.");
-                        const tag = document.createElement('script');
-                        tag.src = "https://www.youtube.com/iframe_api";
-                        const firstScriptTag = document.getElementsByTagName('script')[0];
-                        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-                        
-                        // Create player when API is ready
-                        window.onYouTubeIframeAPIReady = function() {
-                            console.log("YouTube IFrame API Ready. Creating player.");
-                            window.player = new YT.Player('video-player-container', {
-                                height: '360',
-                                width: '640',
-                                videoId: videoId,
-                                playerVars: {
-                                    'playsinline': 1
-                                },
-                                events: {
-                                    'onReady': onPlayerReady,
-                                    'onStateChange': onPlayerStateChange
-                                }
-                            });
-                        };
-                    } else {
-                         console.log("initializeVideoSync: Could not extract YouTube ID from URL:", youtubeUrl);
-                    }
-                } else {
-                     console.log("initializeVideoSync: No youtubeUrl data attribute found.");
-                }
-            } else {
-                 console.error("initializeVideoSync: video-player-container not found.");
-            }
-        } catch (e) {
-            console.error("initializeVideoSync: Error parsing timestamps JSON:", e, "JSON string:", timestampsJson);
-            timestamps = null; // Ensure timestamps is null on error
-        }
-    } else {
-        console.log("initializeVideoSync: No timestamps data found or it is null.");
-    }
-}
-
-function onPlayerReady(event) {
-    console.log("YouTube player ready.");
-    // Removed: Enable timestamp clicks (now handled by attachTimestampClickListeners in renderPage)
-    // document.querySelectorAll('.timestamp-badge').forEach(badge => {
-    //     badge.addEventListener('click', function(e) {
-    //         e.preventDefault();
-    //         e.stopPropagation();
-    //         const ts = parseInt(this.dataset.timestamp, 10);
-    //         if (!isNaN(ts) && window.player) {
-    //             window.player.seekTo(ts, true);
-    //             window.player.playVideo();
-    //         }
-    //     });
-    // });
-}
-
-function onPlayerStateChange(event) {
-    if (event.data === YT.PlayerState.PLAYING) {
-        startVideoSync();
-    } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
-        stopVideoSync();
-    }
-}
-
-let syncInterval = null;
-
-function startVideoSync() {
-    if (syncInterval) return;
-    syncInterval = setInterval(() => {
-        if (window.player) {
-            const currentTime = window.player.getCurrentTime();
-            updateCurrentSegment(currentTime);
-        }
-    }, 100); // Update every 100ms
-}
-
-function stopVideoSync() {
-    if (syncInterval) {
-        clearInterval(syncInterval);
-        syncInterval = null;
-    }
-}
-
-function updateCurrentSegment(time) {
-    // If ANY repeat mode is active, this function will primarily focus on highlighting
-    // and will NOT trigger page changes. The repeat loop handles video seeking.
-    if (currentRepeatMode) {
-        // Find current segment (global paragraph index) based on time
-        let currentSegmentGlobalIndex = -1;
-        for (let i = 0; i < timestamps.length; i++) {
-            if (timestamps[i].timestamp > time) {
-                break;
-            }
-            currentSegmentGlobalIndex = i;
-        }
-
-        if (currentSegmentGlobalIndex === -1) {
-            return; // No segment found yet (e.g., video is before first timestamp)
-        }
-
-        // Get the global paragraph offset for the current page
-        const currentPageInfo = pageInfo[currentPage - 1];
-        const globalParagraphOffset = currentPageInfo ? currentPageInfo.firstGlobalParagraphIndex : 0;
-
-        // Calculate the relative index of the paragraph on the current page
-        const relativeParagraphIndex = currentSegmentGlobalIndex - globalParagraphOffset;
-
-        // Only highlight if the segment is on the current page and visible
-        if (relativeParagraphIndex >= 0 && relativeParagraphIndex < (pagedElements[currentPage - 1] || []).length) {
-            document.querySelectorAll('.lesson-paragraph').forEach(p => {
-                p.classList.remove('current-segment');
-            });
-            const paragraphs = document.querySelectorAll('.lesson-paragraph');
-            if (paragraphs[relativeParagraphIndex]) {
-                const elementToHighlight = paragraphs[relativeParagraphIndex];
-                elementToHighlight.classList.add('current-segment');
-
-                // Only scroll if the element is not fully in view within the parsed-text-area
-                // and it's NOT in sentence repeat mode (as sentence mode fixes view)
-                if (currentRepeatMode !== 'sentence') {
-                    const rect = elementToHighlight.getBoundingClientRect();
-                    const parsedTextArea = document.getElementById('parsed-text-area');
-                    if (parsedTextArea) {
-                        const parentRect = parsedTextArea.getBoundingClientRect();
-                        const isOutsideView = (rect.top < parentRect.top || rect.bottom > parentRect.bottom);
-                        if (isOutsideView) {
-                            elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }
-                    }
-                }
-            }
-        }
-        return; // Always return here if any repeat mode is active, preventing any page changes.
-    }
-
-    // --- This section only runs if no repeat mode is active (currentRepeatMode is null) ---
-
-    if (!timestamps || !Array.isArray(timestamps) || timestamps.length === 0) {
-        return;
-    }
-
-    // Find current segment (global paragraph index) based on time
-    let currentSegmentGlobalIndex = -1;
-    for (let i = 0; i < timestamps.length; i++) {
-        if (timestamps[i].timestamp > time) {
-            break;
-        }
-        currentSegmentGlobalIndex = i;
-    }
-
-    if (currentSegmentGlobalIndex === -1) {
-        // No segment found yet (e.g., video is before first timestamp), no action needed
-        return;
-    }
-
-    // Determine which page this global segment belongs to
-    let targetPage = currentPage; // Default to current page
-    let firstParagraphGlobalIndexOnTargetPage = 0; // To store the start of the target page
-    let foundPage = false;
-
-    for (let i = 0; i < pageInfo.length; i++) {
-        const pageStartGlobalIndex = pageInfo[i].firstGlobalParagraphIndex;
-        const nextPageStartGlobalIndex = (i + 1 < pageInfo.length) ? pageInfo[i+1].firstGlobalParagraphIndex : Infinity;
-
-        if (currentSegmentGlobalIndex >= pageStartGlobalIndex && currentSegmentGlobalIndex < nextPageStartGlobalIndex) {
-            targetPage = i + 1; // Page numbers are 1-indexed
-            firstParagraphGlobalIndexOnTargetPage = pageStartGlobalIndex;
-            foundPage = true;
-            break;
-        }
-    }
-
-    if (!foundPage) {
-        console.warn("updateCurrentSegment: Could not find a page for global segment index:", currentSegmentGlobalIndex);
-        return;
-    }
-
-    // If the target page is different from the current page, render the new page
-    // This logic only executes when currentRepeatMode is null (no repeat active)
-    if (targetPage !== currentPage) {
-        console.log(`Switching page: video time ${time}s, global segment ${currentSegmentGlobalIndex} triggers page ${targetPage}.`);
-        const parsedTextArea = document.getElementById('parsed-text-area');
-        if (parsedTextArea) {
-            parsedTextArea.scrollTop = 0; // Scroll to top before page change
-        }
-        renderPage(targetPage);
-        return; // Exit here, let next interval handle highlighting on new page
-    }
-
-    // If we are on the correct page (and no repeat mode is active), proceed with highlighting and scrolling
-    // Remove highlight from all paragraphs
-    document.querySelectorAll('.lesson-paragraph').forEach(p => {
-        p.classList.remove('current-segment');
-    });
-    
-    // Calculate the relative index of the paragraph on the current page
-    const relativeParagraphIndex = currentSegmentGlobalIndex - firstParagraphGlobalIndexOnTargetPage;
-    
-    const paragraphs = document.querySelectorAll('.lesson-paragraph');
-    if (paragraphs[relativeParagraphIndex]) {
-        const elementToHighlight = paragraphs[relativeParagraphIndex];
-        elementToHighlight.classList.add('current-segment');
-
-        // Only scroll if the element is not fully in view within the parsed-text-area
-        const rect = elementToHighlight.getBoundingClientRect();
-        const parsedTextArea = document.getElementById('parsed-text-area');
-        if (parsedTextArea) {
-            const parentRect = parsedTextArea.getBoundingClientRect();
-
-            const isOutsideView = (rect.top < parentRect.top || rect.bottom > parentRect.bottom);
-            
-            if (isOutsideView) {
-                elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-    }
-}
-
-function buildStyledHtml(parsedElements, singleWordVocab, multiwordTerms) {
-    // Fallback: just call the new paragraph-based function with no timestamps
-    return buildStyledHtmlWithTimestamps(parsedElements, singleWordVocab, multiwordTerms, null);
 }
 
 // --- NEW: Repeat Controls Initialization ---
@@ -1622,15 +1461,32 @@ function initializeRepeatControls() {
                 // This requires iterating through paragraphs on the current page.
                 const paragraphsOnPage = Array.from(document.querySelectorAll('.lesson-paragraph'));
                 const currentIndex = paragraphsOnPage.indexOf(selectedParagraph);
-                let paragraphEndTime = window.player.getDuration(); // Default to end of video
+                let paragraphEndTime;
 
+                // Try to find the next paragraph's timestamp on the current page
                 if (currentIndex !== -1 && currentIndex + 1 < paragraphsOnPage.length) {
                     const nextParagraph = paragraphsOnPage[currentIndex + 1];
                     if (nextParagraph.dataset.timestamp) {
                         paragraphEndTime = parseInt(nextParagraph.dataset.timestamp, 10);
                     }
                 }
-                toggleRepeatMode('sentence', paragraphStartTime, paragraphEndTime);
+                
+                // If no next paragraph on current page or no timestamp, consider next page's start
+                if (paragraphEndTime === undefined) { // Check if it's still undefined from above
+                    const currentPageInfo = pageInfo[currentPage - 1];
+                    const globalParagraphOffset = currentPageInfo ? currentPageInfo.firstGlobalParagraphIndex : 0;
+                    const selectedParagraphGlobalIndex = globalParagraphOffset + currentIndex;
+
+                    const nextPageInfo = pageInfo[currentPage]; // currentPage is 1-indexed
+                    if (nextPageInfo) {
+                        paragraphEndTime = timestamps[nextPageInfo.firstGlobalParagraphIndex].timestamp;
+                    } else {
+                        // If it's truly the last paragraph of the entire text
+                                paragraphEndTime = window.player.getDuration();
+                            }
+                        }
+
+                        toggleRepeatMode('sentence', paragraphStartTime, paragraphEndTime);
             } else if (timestamps && timestamps.length > 0) {
                 // Fallback: If no sentence is selected, repeat the first one on the current page.
                 const firstParagraphElement = document.querySelector('.lesson-paragraph');
@@ -1702,7 +1558,7 @@ function toggleRepeatMode(mode, startTime = null, endTime = null) {
         const nextPageInfo = pageInfo[currentPage]; // pageInfo is 0-indexed, currentPage is 1-indexed
         if (nextPageInfo) {
             repeatLoopEndTime = timestamps[nextPageInfo.firstGlobalParagraphIndex].timestamp;
-        } else {
+    } else {
             // Last page, repeat until end of video
             repeatLoopEndTime = window.player.getDuration();
         }
@@ -1731,23 +1587,30 @@ function toggleRepeatMode(mode, startTime = null, endTime = null) {
                 const selectedParagraphGlobalIndex = globalParagraphOffset + selectedParagraphIndexInPage;
 
                 let paragraphEndTime;
-                // If there is a next global timestamp, use it as the end time
+                // Option 1: If there is a next global timestamp, use it as the end time
                 if (selectedParagraphGlobalIndex + 1 < timestamps.length) {
                     paragraphEndTime = timestamps[selectedParagraphGlobalIndex + 1].timestamp;
                 } else {
-                    // NEW LOGIC: If it's the last timestamp but NOT the last actual paragraph in the text,
-                    // set end time to current start + a short buffer.
-                    // This handles cases where the last text paragraph doesn't have a timestamp.
-                    const totalTextParagraphs = allParsedElements.filter(el => el.type === 'separator' && el.text.includes('\n')).length + 1; // Approx paragraph count
-                    if (selectedParagraphGlobalIndex < totalTextParagraphs - 1) {
-                        // It's the last timestamped paragraph, but not the last actual paragraph of text
-                        paragraphEndTime = repeatLoopStartTime + 5; // Loop for 5 seconds (heuristic)
+                    // Option 2: If it's the last timestamped paragraph on the current page,
+                    // use the timestamp of the first paragraph on the next page as the end.
+                    const nextPageInfo = pageInfo[currentPage]; // currentPage is 1-indexed
+                    if (nextPageInfo && timestamps[nextPageInfo.firstGlobalParagraphIndex]) { // Ensure next page has a timestamp
+                        paragraphEndTime = timestamps[nextPageInfo.firstGlobalParagraphIndex].timestamp;
                     } else {
-                        // It's genuinely the last paragraph of the entire text
-                        paragraphEndTime = window.player.getDuration();
+                        // Option 3: It's genuinely the last paragraph of the entire text,
+                        // or no next page exists. Use video duration or a short buffer.
+                        const totalTextParagraphs = allParsedElements.filter(el => el.type === 'separator' && el.text.includes('\n')).length + 1;
+                        if (selectedParagraphGlobalIndex < totalTextParagraphs - 1) {
+                            // It's the last timestamped paragraph, but not the last actual paragraph of text
+                            paragraphEndTime = repeatLoopStartTime + 5; // Loop for 5 seconds (heuristic)
+                        } else {
+                            // It's genuinely the last paragraph of the entire text
+                            paragraphEndTime = window.player.getDuration();
+                        }
                     }
                 }
                 repeatLoopEndTime = paragraphEndTime;
+                console.log(`Sentence Repeat Calculated: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}`);
 
             } else {
                 console.warn("No specific sentence selected for repeat. Please click a sentence first.");
@@ -1758,10 +1621,9 @@ function toggleRepeatMode(mode, startTime = null, endTime = null) {
         }
         // Add 0.5 second buffer, but don't exceed video duration
         repeatLoopEndTime = Math.min(repeatLoopEndTime + 0.5, window.player.getDuration());
-        console.log(`Sentence Repeat Calculated: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}`);
     }
 
-    console.log(`Repeat loop set: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}`);
+    console.log(`Repeat loop set: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}. Current repeat mode: ${currentRepeatMode}`);
 
     // Start the interval to check playback position
     repeatLoopInterval = setInterval(() => {
@@ -1776,4 +1638,374 @@ function toggleRepeatMode(mode, startTime = null, endTime = null) {
             }
         }
     }, 100); // Check every 100ms
+}
+
+// --- New Video Sync Functions ---
+function initializeVideoSync() {
+    console.log("initializeVideoSync started.");
+            
+            // Initialize YouTube player if URL exists
+            const videoContainer = document.getElementById('video-player-container');
+    if (!videoContainer) {
+        console.error("initializeVideoSync: video-player-container not found.");
+        return;
+    }
+
+                const youtubeUrl = videoContainer.dataset.youtubeUrl;
+    if (!youtubeUrl) {
+        console.log("initializeVideoSync: No youtubeUrl data attribute found.");
+        return;
+    }
+
+                    const videoId = extractYouTubeId(youtubeUrl);
+    if (!videoId) {
+        console.log("initializeVideoSync: Could not extract YouTube ID from URL:", youtubeUrl);
+        return;
+    }
+
+                        // Load YouTube IFrame API
+    if (!window.YT) {
+                        const tag = document.createElement('script');
+                        tag.src = "https://www.youtube.com/iframe_api";
+                        const firstScriptTag = document.getElementsByTagName('script')[0];
+                        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    }
+                        
+                        // Create player when API is ready
+                        window.onYouTubeIframeAPIReady = function() {
+                            console.log("YouTube IFrame API Ready. Creating player.");
+        if (window.player) {
+            console.log("Player already exists, destroying it first.");
+            window.player.destroy();
+        }
+                            window.player = new YT.Player('video-player-container', {
+            height: '200',
+            width: '100%',
+                                videoId: videoId,
+                                playerVars: {
+                'playsinline': 1,
+                'enablejsapi': 1,
+                'origin': window.location.origin
+                                },
+                                events: {
+                                    'onReady': onPlayerReady,
+                'onStateChange': onPlayerStateChange,
+                'onError': function(event) {
+                    console.error("YouTube player error:", event.data);
+                }
+                                }
+                            });
+                        };
+
+    // If YT API is already loaded, create player immediately
+    if (window.YT && window.YT.Player) {
+        window.onYouTubeIframeAPIReady();
+    }
+}
+
+function onPlayerReady(event) {
+    console.log("YouTube player ready.");
+    // Enable timestamp clicks
+    attachTimestampClickListeners();
+    // Start video sync if timestamps exist
+    if (timestamps && Array.isArray(timestamps) && timestamps.length > 0) {
+        startVideoSync();
+    }
+}
+
+function onPlayerStateChange(event) {
+    console.log("Player state changed:", event.data);
+    if (event.data === YT.PlayerState.PLAYING) {
+        startVideoSync();
+    } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+        stopVideoSync();
+    }
+}
+
+function startVideoSync() {
+    if (syncInterval) return;
+    syncInterval = setInterval(() => {
+        if (window.player) {
+            const currentTime = window.player.getCurrentTime();
+            updateCurrentSegment(currentTime);
+        }
+    }, 100); // Update every 100ms
+}
+
+function stopVideoSync() {
+    if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+}
+
+function updateCurrentSegment(time) {
+    console.log(`updateCurrentSegment entry: time=${time}, timestampOffset=${timestampOffset}`);
+    // Apply the global offset to the current time
+    const adjustedTime = time + timestampOffset;
+    console.log(`updateCurrentSegment: Current time: ${time}, Adjusted time with offset ${timestampOffset}: ${adjustedTime}`);
+
+    // If no timestamps, exit early
+    if (!timestamps || !Array.isArray(timestamps) || timestamps.length === 0) {
+        console.log("updateCurrentSegment: No timestamps available.");
+        return;
+    }
+
+    // Find the current segment based on the adjusted time
+        let currentSegmentGlobalIndex = -1;
+        for (let i = 0; i < timestamps.length; i++) {
+        if (adjustedTime >= timestamps[i].timestamp) {
+            currentSegmentGlobalIndex = i;
+        } else {
+                break;
+            }
+        }
+
+        if (currentSegmentGlobalIndex === -1) {
+        console.log("updateCurrentSegment: No matching segment found for time:", adjustedTime);
+        return;
+    }
+
+    console.log("updateCurrentSegment: currentRepeatMode is", currentRepeatMode);
+
+    // If ANY repeat mode is active, this function will primarily focus on highlighting
+    // and will NOT trigger page changes. The repeat loop handles video seeking.
+    if (currentRepeatMode) {
+        console.log("updateCurrentSegment: Repeat mode active (", currentRepeatMode, "). Skipping page change logic.");
+        // Find current segment (global paragraph index) based on time
+        // (This logic is already present, but moved up for clarity to ensure early exit)
+        
+        // Determine which page this segment belongs to based on global index
+        let targetPageForHighlight = currentPage; // Assume current page for highlighting
+        let firstParagraphGlobalIndexOnTargetPageForHighlight = 0;
+        let foundPageForHighlight = false;
+
+        for (let i = 0; i < pageInfo.length; i++) {
+            const pageStartGlobalIndex = pageInfo[i].firstGlobalParagraphIndex;
+            const nextPageStartGlobalIndex = (i + 1 < pageInfo.length) ? pageInfo[i+1].firstGlobalParagraphIndex : Infinity;
+
+            if (currentSegmentGlobalIndex >= pageStartGlobalIndex && currentSegmentGlobalIndex < nextPageStartGlobalIndex) {
+                targetPageForHighlight = i + 1;
+                firstParagraphGlobalIndexOnTargetPageForHighlight = pageStartGlobalIndex;
+                foundPageForHighlight = true;
+                break;
+            }
+        }
+
+        // Only highlight and scroll if the segment is on the CURRENT page
+        if (foundPageForHighlight && targetPageForHighlight === currentPage) {
+        const currentPageInfo = pageInfo[currentPage - 1];
+        const globalParagraphOffset = currentPageInfo ? currentPageInfo.firstGlobalParagraphIndex : 0;
+        const relativeParagraphIndex = currentSegmentGlobalIndex - globalParagraphOffset;
+
+            // Remove highlight from all paragraphs
+            document.querySelectorAll('.lesson-paragraph').forEach(p => {
+                p.classList.remove('current-segment');
+            });
+
+            const paragraphs = document.querySelectorAll('.lesson-paragraph');
+            if (paragraphs[relativeParagraphIndex]) {
+                const elementToHighlight = paragraphs[relativeParagraphIndex];
+                elementToHighlight.classList.add('current-segment');
+
+                // Only scroll if the element is not fully in view within the parsed-text-area
+                // and it's NOT in sentence repeat mode (as sentence mode fixes view for selected sentence)
+                if (currentRepeatMode !== 'sentence') {
+                    const rect = elementToHighlight.getBoundingClientRect();
+                    const parsedTextArea = document.getElementById('parsed-text-area');
+                    if (parsedTextArea) {
+                        const parentRect = parsedTextArea.getBoundingClientRect();
+                        const isOutsideView = (rect.top < parentRect.top || rect.bottom > parentRect.bottom);
+                        if (isOutsideView) {
+                            elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }
+                }
+            }
+        } else {
+            console.log("updateCurrentSegment: Segment (global index ", currentSegmentGlobalIndex, ") is not on current page (", currentPage, ") during repeat mode. No highlight/scroll.");
+        }
+        return; // IMPORTANT: Always return here if any repeat mode is active, preventing any page changes.
+    }
+
+    // --- This section only runs if no repeat mode is active (currentRepeatMode is null) ---
+    console.log("updateCurrentSegment: No repeat mode active. Checking for page change.");
+
+    // Determine which page this segment belongs to
+    let targetPage = currentPage;
+    let firstParagraphGlobalIndexOnTargetPage = 0;
+    let foundPage = false;
+
+    for (let i = 0; i < pageInfo.length; i++) {
+        const pageStartGlobalIndex = pageInfo[i].firstGlobalParagraphIndex;
+        const nextPageStartGlobalIndex = (i + 1 < pageInfo.length) ? pageInfo[i+1].firstGlobalParagraphIndex : Infinity;
+
+        if (currentSegmentGlobalIndex >= pageStartGlobalIndex && currentSegmentGlobalIndex < nextPageStartGlobalIndex) {
+            targetPage = i + 1;
+            firstParagraphGlobalIndexOnTargetPage = pageStartGlobalIndex;
+            foundPage = true;
+            break;
+        }
+    }
+
+    if (!foundPage) {
+        console.warn("updateCurrentSegment: Could not find page for segment index:", currentSegmentGlobalIndex);
+        return;
+    }
+
+    // If we need to change pages
+    if (targetPage !== currentPage) {
+        console.log(`updateCurrentSegment: Page change detected! Current page: ${currentPage}, Target page: ${targetPage}, Current segment global index: ${currentSegmentGlobalIndex}`);
+        const parsedTextArea = document.getElementById('parsed-text-area');
+        if (parsedTextArea) {
+            parsedTextArea.scrollTop = 0;
+        }
+        renderPage(targetPage);
+        console.log("updateCurrentSegment: Page change initiated.");
+        return; // Exit here, let next interval handle highlighting on new page
+    }
+
+    // Update highlighting and scrolling on current page (only if no repeat mode is active and we are on the correct page)
+    console.log(`updateCurrentSegment: Highlighting and scrolling on current page (${currentPage}).`)
+    const currentPageInfo = pageInfo[currentPage - 1];
+    const globalParagraphOffset = currentPageInfo ? currentPageInfo.firstGlobalParagraphIndex : 0;
+    const relativeParagraphIndex = currentSegmentGlobalIndex - globalParagraphOffset;
+
+    // Remove highlight from all paragraphs
+    document.querySelectorAll('.lesson-paragraph').forEach(p => {
+        p.classList.remove('current-segment');
+    });
+    
+    // Add highlight to current paragraph and scroll if needed
+    const paragraphs = document.querySelectorAll('.lesson-paragraph');
+    if (paragraphs[relativeParagraphIndex]) {
+        const elementToHighlight = paragraphs[relativeParagraphIndex];
+        elementToHighlight.classList.add('current-segment');
+
+        // Scroll if element is not fully in view
+        const rect = elementToHighlight.getBoundingClientRect();
+        const parsedTextArea = document.getElementById('parsed-text-area');
+        if (parsedTextArea) {
+            const parentRect = parsedTextArea.getBoundingClientRect();
+            const isOutsideView = (rect.top < parentRect.top || rect.bottom > parentRect.bottom);
+            
+            if (isOutsideView) {
+                elementToHighlight.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }
+}
+
+function buildStyledHtml(parsedElements, singleWordVocab, multiwordTerms) {
+    // Fallback: just call the new paragraph-based function with no timestamps
+    return buildStyledHtmlWithTimestamps(parsedElements, singleWordVocab, multiwordTerms, null);
+}
+
+// --- HTML5 Player Sync Functions ---
+function initializeHtml5PlayerSync() {
+    console.log("initializeHtml5PlayerSync started.");
+    const playerElement = document.getElementById('html5-player');
+    if (playerElement) {
+        html5Player = playerElement; // Assign the HTML5 <video> or <audio> element
+        console.log("HTML5 Player element found:", html5Player);
+
+        html5Player.addEventListener('play', startHtml5Sync);
+        html5Player.addEventListener('pause', stopHtml5Sync);
+        html5Player.addEventListener('ended', stopHtml5Sync);
+                } else {
+        console.log("initializeHtml5PlayerSync: HTML5 player element not found.");
+    }
+}
+
+function startHtml5Sync() {
+    if (syncInterval) return;
+    console.log("Starting HTML5 player sync.");
+    syncInterval = setInterval(() => {
+        if (html5Player) {
+            const currentTime = html5Player.currentTime;
+            updateCurrentSegment(currentTime);
+        }
+    }, 100); // Update every 100ms
+}
+
+function stopHtml5Sync() {
+    if (syncInterval) {
+        console.log("Stopping HTML5 player sync.");
+        clearInterval(syncInterval);
+        syncInterval = null;
+    }
+}
+
+// --- NEW: Timestamp Adjustment Modal Initialization ---
+function initializeTimestampAdjustment() {
+    const adjustButton = document.getElementById('adjust-timestamps-btn');
+    const modal = document.getElementById('timestamp-adjust-modal');
+    const closeButton = modal.querySelector('.close-button');
+    const saveButton = document.getElementById('save-offset-btn');
+    const cancelButton = document.getElementById('cancel-offset-btn');
+    const offsetInput = document.getElementById('offset-input');
+
+    if (!adjustButton || !modal || !closeButton || !saveButton || !cancelButton || !offsetInput) {
+        console.error("Timestamp adjustment modal elements not found. Skipping initialization.");
+        return;
+    }
+
+    // Function to open the modal
+    function openModal() {
+        modal.style.display = 'block';
+        offsetInput.value = timestampOffset; // Set current offset in input
+    }
+
+    // Function to close the modal
+    function closeModal() {
+        modal.style.display = 'none';
+    }
+
+    // Event listeners
+    adjustButton.addEventListener('click', openModal);
+    closeButton.addEventListener('click', closeModal);
+    cancelButton.addEventListener('click', closeModal);
+
+    saveButton.addEventListener('click', () => {
+        const newOffset = parseFloat(offsetInput.value);
+        if (!isNaN(newOffset)) {
+            timestampOffset = newOffset;
+            console.log("Timestamp offset updated to:", timestampOffset);
+            
+            // Save the offset to the server
+            fetch(`/lesson/${currentLessonId}/update_offset`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ offset: newOffset })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log("Offset saved successfully");
+                } else {
+                    console.error("Failed to save offset:", data.error);
+                }
+            })
+            .catch(error => {
+                console.error("Error saving offset:", error);
+            });
+
+            // Re-render the page to apply new offset to timestamp badges
+            renderPage(currentPage);
+            } else {
+            alert("Please enter a valid number for the offset.");
+        }
+        closeModal();
+    });
+
+    // Close modal if clicked outside
+    window.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            closeModal();
+        }
+    });
+
+    console.log("Timestamp adjustment initialized.");
 } 

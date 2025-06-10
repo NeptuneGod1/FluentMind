@@ -4,13 +4,51 @@
 
 {% block content %}
     {# Pass language ID to JS for API calls #}
-    <div class="app-container" data-language-id="{{ language.id }}">
+    <div class="app-container" data-language-id="{{ lesson.language.id }}" data-language-name="{{ lesson.language.name }}" data-lesson-id="{{ lesson.id }}">
         <!-- Left Pane: Text Reader and Video Player -->
         <div class="left-pane">
-            {# Remove grammar header #}
-            <div id="video-player-container" data-youtube-url="{{ lesson.youtube_url if lesson.youtube_url else '' }}">
-                <!-- YouTube Player will be embedded here by JS -->
-                <p>(Media Player Area)</p> 
+            
+            <!-- Media Player Section -->
+            <div class="media-player-container" style="margin-bottom: 15px; width: 400px; margin-left: auto; margin-right: auto;"
+                 {% if lesson.media_url %}data-media-url="{{ lesson.media_url }}"{% endif %}>
+                {% if lesson.media_url %}
+                    {% set media_extension = lesson.media_url.split('.')[-1] | lower %}
+                    {% if media_extension in ['mp4', 'avi', 'mov', 'mkv', 'webm'] %}
+                        <video id="html5-player" controls width="100%" height="200" src="{{ lesson.media_url }}">
+                            Your browser does not support the video tag.
+                        </video>
+                    {% elif media_extension in ['mp3', 'wav', 'ogg'] %}
+                        <audio id="html5-player" controls src="{{ lesson.media_url }}">
+                            Your browser does not support the audio element.
+                        </audio>
+                    {% else %}
+                        <p>Unsupported uploaded media type.</p>
+                    {% endif %}
+                {% elif lesson.youtube_url %}
+                    {# Extract video ID and build embed URL for robustness #}
+                    {% set youtube_video_id = '' %}
+                    {% if 'youtube.com/watch?v=' in lesson.youtube_url %}
+                        {% set parts = lesson.youtube_url.split('watch?v=') %}
+                        {% if parts|length > 1 %}
+                            {% set id_and_params = parts[1].split('&')[0] %}
+                            {% set youtube_video_id = id_and_params %}
+                        {% endif %}
+                    {% elif 'youtu.be/' in lesson.youtube_url %}
+                        {% set parts = lesson.youtube_url.split('youtu.be/') %}
+                        {% if parts|length > 1 %}
+                            {% set id_and_params = parts[1].split('?')[0].split('&')[0] %}
+                            {% set youtube_video_id = id_and_params %}
+                        {% endif %}
+                    {% endif %}
+
+                    {% if youtube_video_id %}
+                        <div id="video-player-container" data-youtube-url="{{ lesson.youtube_url }}" style="width: 100%; height: 200px;"></div>
+                    {% else %}
+                        <p>Invalid YouTube URL.</p>
+                    {% endif %}
+                {% else %}
+                    <p>No media provided for this lesson.</p>
+                {% endif %}
             </div>
 
             {# Remove grammar data attributes #}
@@ -29,6 +67,7 @@
                     <span id="page-info">Page 1 of 1</span>
                     <button id="next-page-btn" disabled>Next &gt;</button>
                     <button id="repeat-sentence-btn" title="Repeat Sentence">&#x27F3;</button>
+                    <button id="adjust-timestamps-btn" title="Adjust Timestamps" style="margin-left: 10px;">⏱️ Adjust</button>
                 </div>
             </div>
         </div>
@@ -89,20 +128,22 @@
         {{ lesson.timestamps | safe if lesson.timestamps and lesson.timestamps|length > 0 else "null" }}
     </script>
 
+    <!-- Timestamp Adjustment Modal -->
+    <div id="timestamp-adjust-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Adjust Timestamp Offset</h2>
+            <p>Enter a value in seconds to adjust timestamps. Use positive values to advance timestamps (text appears later relative to video) and negative values to delay them (text appears earlier).</p>
+            <input type="number" id="offset-input" step="0.1" value="0">
+            <div class="modal-buttons">
+                <button id="save-offset-btn">Save</button>
+                <button id="cancel-offset-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
 {% endblock %}
 
 {% block scripts %}
-{{ super() }}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Call the main initialization function from script.js
-    if (typeof initializeReader === 'function') {
-        initializeReader(); 
-    } else {
-        console.error("initializeReader function not found. Ensure script.js loaded correctly and defines initializeReader globally.");
-        const textContainer = document.getElementById('parsed-text-area');
-        if(textContainer) textContainer.innerHTML = '<p class="text-danger">Error initializing reader script.</p>';
-    }
-});
-</script>
+{{ super() }} {# This will load script.js after currentLessonId is defined #}
 {% endblock %}

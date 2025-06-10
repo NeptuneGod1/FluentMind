@@ -29,15 +29,33 @@
                 <label for="youtube_url">YouTube URL (Optional):</label>
                 <input type="url" id="youtube_url" name="youtube_url" value="{{ lesson.youtube_url or '' }}" style="width: 80%;">
             </div>
-             <div class="form-group">
-                <label for="audio_file">Audio File (Optional - replaces existing if uploaded):</label>
-                {% if lesson.audio_filename %}
-                    <p>Current: {{ lesson.audio_filename }} </p>
-                    {# Optional: Add an audio player here to preview current audio #}
-                    {# <audio controls src="{{ url_for('static', filename='uploads/audio/' + lesson.audio_filename) }}"></audio> #}
+            
+            <div class="form-group">
+                <label>Media (Optional - replaces existing if uploaded):</label>
+                {% if lesson.media_url %}
+                    <p>Current Media:</p>
+                    {% if '.mp4' in lesson.media_url or '.avi' in lesson.media_url or '.mov' in lesson.media_url or '.mkv' in lesson.media_url or '.webm' in lesson.media_url %}
+                        <video controls width="320" height="240">
+                            <source src="{{ lesson.media_url }}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    {% elif '.mp3' in lesson.media_url or '.wav' in lesson.media_url or '.ogg' in lesson.media_url %}
+                        <audio controls>
+                            <source src="{{ lesson.media_url }}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    {% endif %}
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="clear_media" name="clear_media" value="true">
+                        <label class="form-check-label" for="clear_media">Clear existing media</label>
+                    </div>
                 {% endif %}
+                <label for="video_file" class="mt-2">Upload Video File (Optional):</label>
+                <input type="file" id="video_file" name="video_file" accept="video/*">
+                <label for="audio_file" class="mt-2">Upload Audio File (Optional):</label>
                 <input type="file" id="audio_file" name="audio_file" accept="audio/*">
             </div>
+
             <div class="form-group">
                 <label for="lesson-image">Card Background Image (Optional):</label>
                 {% if lesson.image_filename %}
