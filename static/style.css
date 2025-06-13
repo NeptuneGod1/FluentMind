@@ -761,6 +761,18 @@ body {
 }
 
 .status-btn {
+    @media (min-width: 1400px) {
+  html {
+    font-size: 19px;
+  }
+  .language-lessons-content {
+    max-width: 2000px !important;
+  }
+  .lesson-cards-container {
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 38px;
+  }
+}
     min-width: 40px; /* Ensure buttons have some width */
     padding: 4px 8px !important; /* Override general button padding */
     font-size: 0.9em;
