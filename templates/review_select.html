@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Select Language to Review - FluentMind{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4">Select a Language to Review</h2>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% if languages %}
+            {% for lang in languages %}
+            <div class="col">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">{{ lang.name }}</h5>
+                        <p class="card-text text-muted">Cards due: {{ lang.due_review_count }}</p>
+                        <a href="{{ url_for('review_language', lang_id=lang.id) }}" class="btn btn-primary mt-auto">Start Review</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col">
+                <div class="alert alert-info" role="alert">
+                    No languages added yet. Add one in <a href="{{ url_for('settings') }}" class="alert-link">Settings</a>!
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

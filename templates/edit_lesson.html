@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Lesson - {{ lesson.title }}{% endblock %}
+
+{% block content %}
+    <div class="edit-lesson-page-content">
+        <nav class="breadcrumbs">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a> &gt; 
+            <a href="{{ url_for('language_lessons', lang_name=lesson.language.name.lower()) }}">{{ lesson.language.name }}</a> &gt; 
+            Edit: {{ lesson.title }}
+        </nav>
+
+        <h2>Edit Lesson: {{ lesson.title }}</h2>
+        <form action="{{ url_for('update_lesson', lesson_id=lesson.id) }}" method="post" enctype="multipart/form-data"> 
+            <!-- Added enctype for file upload -->
+            <div class="form-group">
+                <label for="lesson-title">Title:</label>
+                <input type="text" id="lesson-title" name="lesson_title" value="{{ lesson.title }}" required style="width: 80%;">
+            </div>
+            <div class="form-group">
+                <label for="lesson-text">Text:</label>
+                <textarea id="lesson-text" name="lesson_text" rows="15" required style="width: 95%;">{{ lesson.text_content }}</textarea>
+            </div>
+            <div class="form-group">
+                <label for="lesson-source">Source URL (Optional):</label>
+                <input type="url" id="lesson-source" name="lesson_source" value="{{ lesson.source_url or '' }}" style="width: 80%;">
+            </div>
+            <div class="form-group">
+                <label for="youtube_url">YouTube URL (Optional):</label>
+                <input type="url" id="youtube_url" name="youtube_url" value="{{ lesson.youtube_url or '' }}" style="width: 80%;">
+            </div>
+            
+            <div class="form-group">
+                <label>Media (Optional - replaces existing if uploaded):</label>
+                {% if lesson.media_url %}
+                    <p>Current Media:</p>
+                    {% if '.mp4' in lesson.media_url or '.avi' in lesson.media_url or '.mov' in lesson.media_url or '.mkv' in lesson.media_url or '.webm' in lesson.media_url %}
+                        <video controls width="320" height="240">
+                            <source src="{{ lesson.media_url }}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    {% elif '.mp3' in lesson.media_url or '.wav' in lesson.media_url or '.ogg' in lesson.media_url %}
+                        <audio controls>
+                            <source src="{{ lesson.media_url }}" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                    {% endif %}
+                    <div class="form-check mt-2">
+                        <input type="checkbox" class="form-check-input" id="clear_media" name="clear_media" value="true">
+                        <label class="form-check-label" for="clear_media">Clear existing media</label>
+                    </div>
+                {% endif %}
+                <label for="video_file" class="mt-2">Upload Video File (Optional):</label>
+                <input type="file" id="video_file" name="video_file" accept="video/*">
+                <label for="audio_file" class="mt-2">Upload Audio File (Optional):</label>
+                <input type="file" id="audio_file" name="audio_file" accept="audio/*">
+            </div>
+
+            <div class="form-group">
+                <label for="lesson-image">Card Background Image (Optional):</label>
+                {% if lesson.image_filename %}
+                    <p>Current: {{ lesson.image_filename }} 
+                       <img src="{{ url_for('static', filename='uploads/' + lesson.image_filename) }}" alt="Current image" height="30">
+                    </p>
+                {% endif %}
+                <input type="file" id="lesson-image" name="lesson_image" accept="image/png, image/jpeg, image/gif">
+            </div>
+            <button type="submit">Update Lesson</button>
+             <a href="{{ url_for('language_lessons', lang_name=lesson.language.name.lower()) }}" class="btn-cancel">Cancel</a>
+        </form>
+    </div>
+{% endblock %} 

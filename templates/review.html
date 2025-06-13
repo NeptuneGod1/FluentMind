@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Review - {{ language.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">Review - {{ language.name }}</h3>
+                </div>
+                <div class="card-body">
+                    <div id="review-area" data-language-id="{{ language.id }}">
+                        <!-- Flashcard -->
+                        <div class="flashcard mb-4">
+                            <div class="card">
+                                <div class="card-body text-center position-relative">
+                                    <!-- State indicator -->
+                                    <div class="position-absolute top-0 end-0 p-2">
+                                        <small class="text-muted">Level: <span id="card-level"></span></small>
+                                    </div>
+                                    <div id="front" class="mb-3">
+                                        <h4 id="term"></h4>
+                                        <p id="context" class="text-muted"></p>
+                                    </div>
+                                    <div id="back" class="d-none">
+                                        <h4 id="translation"></h4>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Controls -->
+                        <div class="text-center">
+                            <button id="go-back-btn" class="btn btn-secondary me-2 mb-3">Go Back</button>
+                            <button id="show-answer" class="btn btn-primary mb-3">Show Answer</button>
+                            
+                            <div id="rating-buttons" class="d-none">
+                                <button class="btn btn-danger me-2" data-rating="again">Again</button>
+                                <button class="btn btn-warning me-2" data-rating="hard">Hard</button>
+                                <button class="btn btn-info me-2" data-rating="good">Good</button>
+                                <button class="btn btn-success" data-rating="easy">Easy</button>
+                            </div>
+                        </div>
+
+                        <!-- Progress -->
+                        <div class="progress mt-4">
+                            <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <span id="progress-text">0/0</span>
+                        </div>
+                        <!-- New: Feedback Indicator -->
+                        <div id="review-feedback" class="text-center mt-3" style="font-weight: bold; opacity: 0; transition: opacity 0.5s ease-out; height: 1.2em; overflow: hidden;"></div>
+                        <!-- End New Feedback Indicator -->
+                    </div>
+
+                    <!-- Session Complete Message -->
+                    <div id="session-complete" class="text-center d-none">
+                        <h4>Review Session Complete!</h4>
+                        <p>You've reviewed all available cards.</p>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+                    </div>
+
+                    <!-- No Cards Message -->
+                    <div id="no-cards" class="text-center d-none">
+                        <h4>No Cards to Review</h4>
+                        <p>There are no cards available for review at this time.</p>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Return to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - FluentMind{% endblock %}
+
+{% block head %}
+<style>
+    /* Segmented CEFR Progress Bar */
+    .segmented-cefr-bar {
+        display: flex;
+        gap: 4px;
+        width: 100%;
+        height: 10px;
+        border-radius: 4px;
+        overflow: visible;
+        margin-top: 8px;
+        background: none;
+        justify-content: center;
+        align-items: center;
+    }
+    .cefr-segment {
+        width: 32px;
+        height: 100%;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        transition: box-shadow 0.2s;
+    }
+    .cefr-segment > div {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.4s cubic-bezier(.4,0,.2,1);
+    }
+    .cefr-segment[title]:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+        z-index: 2;
+    }
+    .cefr-segment-a1 { background-color: #d9534f; } /* Red */
+    .cefr-segment-a2 { background-color: #f0ad4e; } /* Orange */
+    .cefr-segment-b1 { background-color: #777; }    /* Grey */
+    .cefr-segment-b2 { background-color: #20c997; } /* Teal */
+    .cefr-segment-c1 { background-color: #5cb85c; } /* Green */
+    .cefr-segment-c2 { background-color: #4cae4c; } /* Darker Green */
+    
+    @keyframes cefr-glow-pulse {
+        0% { box-shadow: 0 1px 6px 0 var(--cefr-glow, #fff), 0 0 0 1px rgba(0,0,0,0.04); }
+        50% { box-shadow: 0 2px 12px 2px var(--cefr-glow, #fff), 0 0 0 1px rgba(0,0,0,0.07); }
+        100% { box-shadow: 0 1px 6px 0 var(--cefr-glow, #fff), 0 0 0 1px rgba(0,0,0,0.04); }
+    }
+    .cefr-segment-current {
+        filter: brightness(0.97) saturate(1.2) drop-shadow(0 1px 4px var(--cefr-glow, #fff));
+        height: 24px;
+        margin-top: -7px;
+        z-index: 3;
+        border: 2px solid #2222;
+        box-shadow: 0 2px 8px 0 var(--cefr-glow, #fff), 0 0 0 1px rgba(0,0,0,0.07);
+        animation: cefr-glow-pulse 2.2s infinite;
+        transition: all 0.3s cubic-bezier(.4,0,.2,1);
+        position: relative;
+        overflow: visible;
+    }
+    .cefr-segment-current > div {
+        background: linear-gradient(90deg, var(--cefr-glow, #fff) 0%, #fff0 100%);
+        box-shadow: 0 0 6px 1px var(--cefr-glow, #fff);
+        transition: background 0.3s, box-shadow 0.3s;
+    }
+    
+    .language-cards-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: flex-start;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px 15px;
+        width: 100%;
+    }
+    
+    .language-card-container {
+        flex: 0 0 calc(33.333% - 14px); /* 3 cards per row with gap */
+        max-width: 350px;
+        min-width: 280px;
+        box-sizing: border-box;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        background: white;
+        margin-bottom: 20px;
+    }
+    
+    @media (max-width: 992px) {
+        .language-card-container {
+            flex: 0 0 calc(50% - 10px); /* 2 cards per row on medium screens */
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .language-card-container {
+            flex: 0 0 100%; /* 1 card per row on small screens */
+            max-width: 100%;
+        }
+    }
+    
+    .language-card-container:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .language-card-link,
+    .language-card {
+        display: block;
+        width: 100%;
+    }
+    
+    .language-card-image {
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        height: 150px;
+        position: relative;
+    }
+    
+    .image-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    
+    .reposition-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    }
+    
+    .reposition-instructions {
+        color: #fff;
+        margin-bottom: 10px;
+    }
+    
+    .save-position-btn, .cancel-position-btn {
+        background-color: #fff;
+        color: #333;
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    
+    .save-position-btn:hover, .cancel-position-btn:hover {
+        background-color: #eee;
+    }
+    
+    .language-card-content {
+        padding: 20px;
+    }
+    
+    .progress-bar-container {
+        width: 100%;
+        height: 10px;
+        background-color: #eee;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        height: 100%;
+        background-color: #337ab7;
+    }
+    
+    .progress-percent {
+        font-size: 14px;
+        margin-left: 10px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div id="banner"
+         {% if banner_image %}
+             style="background-image: url('{{ url_for('static', filename='uploads/' + banner_image) }}');"
+         {% endif %}
+    >
+        <!-- Buttons for banner actions -->
+        <div class="banner-actions">
+            <button class="banner-action-btn" id="change-cover-btn" title="Change Cover"><small>Change</small></button>
+            <button class="banner-action-btn" id="reposition-btn" title="Reposition"><small>Reposition</small></button>
+        </div>
+
+        <!-- Background image set dynamically or via CSS default -->
+        <div class="banner-overlay">
+            <h1>The Coziest Language Study Corner</h1>
+        </div>
+    </div>
+
+    <div class="dashboard-content">
+        <h2>Select a Language</h2>
+        <div class="language-cards-container">
+            {% for lang in languages %}
+                <div class="language-card-container" data-language-id="{{ lang.id }}">
+                    <div class="language-card">
+                        <!-- Language Card Content -->
+                        <a href="{{ url_for('language_lessons', lang_name=lang.name.lower()) }}" class="language-card-link">
+                            <!-- Card Image -->
+                            <div class="language-card-image" 
+                                 {% if lang.card_background_image %}
+                                     style="background-image: url('{{ url_for('static', filename='uploads/language_bg/' + lang.card_background_image) }}'); background-position: {{ lang.card_background_position or 'center' }};"
+                                 {% else %}
+                                     style="background-color: #eee; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 0.9em;"
+                                 {% endif %}>
+                                {% if lang.card_background_image %}
+                                <div class="image-controls" onclick="event.preventDefault(); event.stopPropagation();">
+                                    <button class="reposition-btn" title="Reposition Image" onclick="event.preventDefault(); event.stopPropagation();">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="reposition-overlay" style="display: none;" onclick="event.preventDefault(); event.stopPropagation();">
+                                    <div class="reposition-instructions">Click and drag to reposition image</div>
+                                    <button class="save-position-btn">Save Position</button>
+                                    <button class="cancel-position-btn">Cancel</button>
+                                </div>
+                                {% else %}
+                                <span>(No Image)</span>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Card Content -->
+                            <div class="language-card-content">
+                                <h3>{{ lang.name }}</h3>
+                                <p>Level: {{ lang.level or 'N/A' }}</p>
+                                
+                                <!-- Progress Bar -->
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar" style="width: {{ lang.progress_percent }}%;"></div>
+                                </div>
+                                <span class="progress-percent" title="{{ lang.known_count }} / {{ target_known_words or 10000 }} words known">
+                                    {{ "%.1f"|format(lang.progress_percent) }}%
+                                </span>
+
+                                <!-- New Segmented CEFR Bar -->
+                                <div class="segmented-cefr-bar" id="cefr-bar-{{ lang.id }}" data-lang-id="{{ lang.id }}" title="CEFR Level Progress"></div>
+                                <div class="cefr-label" id="cefr-label-{{ lang.id }}" style="font-size:0.75rem;text-align:center;margin-top:2px;color:#666;"></div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <p>No languages added yet. Add one in Settings!</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Maybe add a footer later -->
+{% endblock %} 

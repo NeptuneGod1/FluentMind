@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Use a block for the title so child templates can set it -->
+    <title>{% block title %}FluentMind{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Your Custom CSS (Load AFTER Bootstrap to allow overrides) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Add other common head elements here if needed -->
+    {% block head %}{% endblock %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+</head>
+<body>
+    <!-- Reverted Nav to original position -->
+    <nav class="dock-nav">
+        <ul>
+            <li class="dock-nav-item">
+                <a href="{{ url_for('dashboard') }}">
+                    <i class="bi bi-house dock-nav-icon"></i>
+                    <span class="dock-nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li class="dock-nav-item">
+                <a href="{{ url_for('stats') }}">
+                    <i class="bi bi-bar-chart dock-nav-icon"></i>
+                    <span class="dock-nav-label">Statistics</span>
+                </a>
+            </li>
+            <li class="dock-nav-item">
+                <a href="{{ url_for('review_select_language') }}">
+                    <i class="bi bi-journal-check dock-nav-icon"></i>
+                    <span class="dock-nav-label">Review</span>
+                </a>
+            </li>
+            <li class="dock-nav-item">
+                <a href="{{ url_for('settings') }}">
+                    <i class="bi bi-gear dock-nav-icon"></i>
+                    <span class="dock-nav-label">Settings</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Flashed messages back between nav and main -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category or 'info' }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Reverted main class -->
+    <main class="content-area">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <!-- Optional footer content -->
+        <p>&copy; 2025 FluentMind</p>
+    </footer>
+
+    <!-- Common scripts can go here, specific ones in child templates -->
+    <script src="{{ url_for('static', filename='js/image_reposition.js') }}"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/cefr-progress.js') }}"></script>
+    
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html>
