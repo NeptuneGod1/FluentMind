@@ -28,6 +28,9 @@ call venv\Scripts\activate
 REM Upgrade pip, setuptools, wheel
 %PYTHON_CMD% -m pip install --upgrade pip setuptools wheel
 
+REM Pre-install pandas to ensure a compatible wheel is used
+%PYTHON_CMD% -m pip install --upgrade --prefer-binary pandas
+
 REM Install dependencies (prefer binary wheels)
 %PYTHON_CMD% -m pip install --prefer-binary -r requirements.txt
 
