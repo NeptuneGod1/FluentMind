@@ -1,27 +1,35 @@
 @echo off
-REM ModernLWT3 - One-click installer for Windows
+REM ModernLWT3 - Robust one-click installer for Windows
 
-REM Check for Python
-python --version >nul 2>&1
-IF %ERRORLEVEL% NEQ 0 (
-    echo Python is not installed. Please install Python 3.9+ from https://www.python.org/downloads/
-    pause
-    exit /b 1
+REM Try python, then python3
+where python >nul 2>&1
+IF %ERRORLEVEL% EQU 0 (
+    set PYTHON_CMD=python
+) ELSE (
+    where python3 >nul 2>&1
+    IF %ERRORLEVEL% EQU 0 (
+        set PYTHON_CMD=python3
+    ) ELSE (
+        echo Python 3.9+ is not installed or not in your PATH.
+        echo Please install Python from https://www.python.org/downloads/ and add it to your PATH.
+        pause
+        exit /b 1
+    )
 )
 
 REM Create virtual environment if it doesn't exist
 IF NOT EXIST venv (
-    python -m venv venv
+    %PYTHON_CMD% -m venv venv
 )
 
 REM Activate virtual environment
 call venv\Scripts\activate
 
-REM Upgrade pip
-python -m pip install --upgrade pip
+REM Upgrade pip, setuptools, wheel
+%PYTHON_CMD% -m pip install --upgrade pip setuptools wheel
 
-REM Install dependencies
-pip install -r requirements.txt
+REM Install dependencies (prefer binary wheels)
+%PYTHON_CMD% -m pip install --prefer-binary -r requirements.txt
 
 
 echo Installation complete! You can now run the app using run.bat
