@@ -304,7 +304,7 @@ def compute_readability(words):
 def get_words_for_readability(text: str, language_id: int) -> list:
     VocabTerm = _get_model('VocabTerm')
     Language = _get_model('Language')
-    from app import get_spacy_model # Import get_spacy_model from app
+    from extensions import get_spacy_model # Import get_spacy_model from extensions
 
     words_data = []
 

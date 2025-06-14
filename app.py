@@ -16,7 +16,7 @@ from flask import (
     current_app,
 )  # Added jsonify, Response, and send_file
 from werkzeug.utils import secure_filename
-from extensions import db, migrate  # SQLAlchemy and Migrate are now imported from extensions
+from extensions import db, migrate, Setting, get_spacy_model  # Import get_spacy_model from extensions
 from sqlalchemy.exc import IntegrityError  # Import IntegrityError
 from sqlalchemy import func
 from datetime import (
@@ -136,7 +136,7 @@ app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024 * 1024  # 1 GB limit for uplo
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev")  # CHANGE THIS
 
 # Import extensions
-from extensions import db, migrate
+from extensions import db, migrate, Setting  # Import Setting from extensions
 
 # Initialize extensions
 db.init_app(app)
@@ -144,16 +144,11 @@ migrate.init_app(app, db)
 
 
 # --- Database Models (Define structure) ---
-class Setting(db.Model):
-    key = db.Column(db.String(50), primary_key=True)
-    value = db.Column(db.String(200))
-
-
 class Language(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
-    level = db.Column(db.String(10))  # e.g., A1, B2
-    days_learning = db.Column(db.Integer, default=0)
+    name = db.Column(db.String(50), unique=True, nullable=False, index=True)  # Added index for faster lookups
+    level = db.Column(db.String(10), index=True)  # e.g., A1, B2 - added index for filtering
+    days_learning = db.Column(db.Integer, default=0, index=True)  # Added index for sorting
     card_background_image = db.Column(db.String(200))  # Filename for card bg
     # Store comma-separated IDs of active dictionaries for this language
     active_dictionary_ids = db.Column(db.String(500), default="")
@@ -173,19 +168,7 @@ class Language(db.Model):
         return f"<Language {self.name}>"
 
 
-# Map of language names to SpaCy model names
-SPACY_MODEL_MAP = {
-    "English": "en_core_web_sm",
-    "Spanish": "es_core_news_sm",
-    "French": "fr_core_news_sm",
-    "German": "de_core_news_sm",
-    "Chinese": "zh_core_web_sm",  # Note: Chinese models are often larger
-    "Japanese": "ja_core_news_sm",  # Note: Japanese models are often larger
-    "Russian": "ru_core_news_sm",
-    "Italian": "it_core_news_sm",
-    "Portuguese": "pt_core_news_sm",
-    "Dutch": "nl_core_news_sm",
-}
+# SPACY_MODEL_MAP and get_spacy_model have been moved to extensions.py
 
 
 # --- SRS Settings Model ---
@@ -248,21 +231,27 @@ class Dictionary(db.Model):
 
 class Lesson(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    language_id = db.Column(db.Integer, db.ForeignKey("language.id"), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
+    language_id = db.Column(db.Integer, db.ForeignKey("language.id"), nullable=False, index=True)  # Added index for faster lookups
+    title = db.Column(db.String(200), nullable=False, index=True)  # Added index for searching
     text_content = db.Column(db.Text, nullable=False)
     source_url = db.Column(db.String(500))  # Optional URL where text came from
-    word_count = db.Column(db.Integer, default=0)
+    word_count = db.Column(db.Integer, default=0, index=True)  # Added index for sorting
     image_filename = db.Column(db.String(200))  # Optional image for card bg
     media_url = db.Column(db.String(500))  # Optional YouTube/Audio URL
-    youtube_url = db.Column(db.String(500), nullable=True)
-    audio_filename = db.Column(db.String(300), nullable=True)  # Store only filename
+    youtube_url = db.Column(db.String(500), nullable=True, index=True)  # Added index for filtering
+    audio_filename = db.Column(db.String(300), nullable=True, index=True)  # Added index for filtering
     grammar_summary = db.Column(db.Text, nullable=True)
     timestamps = db.Column(db.Text, nullable=True)  # Store timestamps as JSON string
     timestamp_offset = db.Column(
-        db.Float, default=0.0
+        db.Float, default=0.0, index=True  # Added index for sorting
     )  # Store timestamp offset in seconds
-    readability_score = db.Column(db.Float, default=0.0) # New field for readability
+    readability_score = db.Column(db.Float, default=0.0, index=True)  # Added index for sorting
+    
+    # Add composite index for common query patterns
+    __table_args__ = (
+        db.Index('idx_lesson_language_readability', 'language_id', 'readability_score'),
+        db.Index('idx_lesson_language_wordcount', 'language_id', 'word_count'),
+    )
 
     def __repr__(self):
         return f"<Lesson {self.title} (Lang ID: {self.language_id})>"
@@ -338,19 +327,26 @@ class VocabTerm(db.Model):
 # --- Story Model ---
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    language_id = db.Column(db.Integer, db.ForeignKey("language.id"), nullable=False)
+    language_id = db.Column(db.Integer, db.ForeignKey("language.id"), nullable=False, index=True)  # Added index for faster lookups
     title = db.Column(
-        db.String(200), nullable=True
+        db.String(200), nullable=True, index=True  # Added index for searching
     )  # Title might be AI generated or added later
-    theme = db.Column(db.String(100), nullable=False)
+    theme = db.Column(db.String(100), nullable=False, index=True)  # Added index for filtering
     content = db.Column(db.Text, nullable=False)
     cover_image_filename = db.Column(
         db.String(300), nullable=True
     )  # Store filename of locally saved cover
-    audio_filename = db.Column(db.String(300), nullable=True)  # Store audio filename
-    grammar_summary = db.Column(db.Text, nullable=True)  # <<< ADD THIS for Story
-    created_at = db.Column(db.DateTime, default=datetime.utcnow())
-    readability_score = db.Column(db.Float, default=0.0) # New field for readability
+    audio_filename = db.Column(db.String(300), nullable=True, index=True)  # Added index for filtering
+    grammar_summary = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)  # Added index for sorting
+    readability_score = db.Column(db.Float, default=0.0, index=True)  # Added index for sorting
+    
+    # Add composite index for common query patterns
+    __table_args__ = (
+        db.Index('idx_story_language_theme', 'language_id', 'theme'),
+        db.Index('idx_story_language_readability', 'language_id', 'readability_score'),
+        db.Index('idx_story_created', 'created_at'),
+    )
 
     language = db.relationship("Language", backref=db.backref("stories", lazy=True))
 
@@ -853,11 +849,11 @@ def add_language():
     msg_category = "error"  # Default to error
 
     if not name:
-        flash("Language name is required.", "error")
+        session['add_language_msg'] = {"text": "Language name is required.", "category": "error"}
     else:
         existing_lang = Language.query.filter(Language.name.ilike(name)).first()
         if existing_lang:
-            flash(f"{name} already exists.", "error")
+            session['add_language_msg'] = {"text": f"{name} already exists.", "category": "error"}
         else:
             # Determine SpaCy model status based on availability
             model_name = SPACY_MODEL_MAP.get(name.strip().capitalize())
@@ -891,15 +887,15 @@ def add_language():
                     True  # Allow the main program to exit even if thread is running
                 )
                 thread.start()
-                flash(
-                    "Language added. SpaCy model is downloading in the background.",
-                    "info",
-                )
+                session['add_language_msg'] = {
+                    "text": "Language added. SpaCy model is downloading in the background.",
+                    "category": "info"
+                }
             else:
-                flash(
-                    "Language added, but no SpaCy model found for it. Text processing may not work.",
-                    "warning",
-                )
+                session['add_language_msg'] = {
+                    "text": "Language added, but no SpaCy model found for it. Text processing may not work.",
+                    "category": "warning"
+                }
 
     return redirect(url_for("settings"))
 
@@ -1445,6 +1441,9 @@ def update_lesson(lesson_id):
             save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             file.save(save_path)
             lesson.image_filename = filename  # Update filename in DB
+            db.session.commit()
+            flash(f"Background image updated for {lesson.title}.", "success")
+
         elif file and file.filename != "":  # File selected but not allowed type
             flash("Invalid image file type for lesson background.", "error")
             # Render edit form again instead of redirecting immediately
@@ -3007,52 +3006,7 @@ def analyze_text():
 # --- End CEFR Progress and Text Analysis API ---
 
 # --- spaCy Model Cache ---
-# The spacy_models dictionary is no longer needed because lru_cache handles caching
-# spacy_models = {}
-
-# Map language names (as stored in DB) to spaCy model names
-# This now refers to the SPACY_MODEL_MAP defined earlier in the file
-
-# Helper function to load/cache spaCy models
-@lru_cache(maxsize=10) # Cache up to 10 different language models
-def get_spacy_model(language_name):
-    # Use the globally defined SPACY_MODEL_MAP
-    model_name = SPACY_MODEL_MAP.get(
-        language_name.capitalize()
-    )  # Use .capitalize() to match map keys
-    if not model_name:
-        # Check for lowercase version if capitalize fails (just in case of input variations)
-        model_name = SPACY_MODEL_MAP.get(language_name.lower())
-        if not model_name:
-            print(
-                f"Warning: No spaCy model mapping found for language '{language_name}'."
-            )
-        return None  # Language not supported or mapping missing
-
-    # The spacy_models dictionary and check are no longer strictly needed due to lru_cache
-    # but I will keep it for now as a fallback or if there's other logic relying on it.
-    # The lru_cache decorator handles the caching directly.
-    # if model_name in spacy_models: # This check might become redundant with lru_cache
-    #     return spacy_models[model_name]
-    # else:
-    try:
-        print(f"Loading spaCy model: {model_name} for language: {language_name}")
-        nlp = spacy.load(model_name)
-        # spacy_models[model_name] = nlp # Not strictly needed due to lru_cache
-        return nlp
-    except OSError:
-        # Model not downloaded
-        print(
-            f"Warning: spaCy model '{model_name}' not found. Please run: python -m spacy download {model_name}"
-        )
-        # spacy_models[model_name] = None  # Cache None to avoid retrying - not strictly needed
-        return None
-    except Exception as e:
-        # Other loading errors
-        print(f"Error loading spaCy model '{model_name}': {e}")
-        # spacy_models[model_name] = None # Not strictly needed
-        return None
-
+# Moved to extensions.py
 # --- End spaCy Helper ---
 
 

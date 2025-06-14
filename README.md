@@ -14,8 +14,11 @@
 
 ### 3. Run the App
 - Double-click `run.bat` in the folder.
-- Your browser will open the app automatically.
-- The app runs at: http://127.0.0.1:5000/
+- A browser window will open automatically, but it may show an error at first—this is normal!
+- Wait a few seconds until a new terminal window appears showing the app is running.
+- Then refresh the browser, or copy and paste this address into your browser:
+  - [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
+- The app will be ready to use when you see the homepage.
 
 ---
 
@@ -170,7 +173,52 @@ When a YouTube video is linked to a lesson and playing, the text in the reader w
     *   **Repeat Sentence (`&#x27F3;`)**: Click this button to loop the currently active sentence. The video will automatically seek back to the beginning of the sentence and repeat.
     *   **Repeat Page (`&#x21BB;`)**: Click this button to loop the entire current page of text. The video will automatically seek to the beginning of the page and repeat playback until the end of the page.
 
----
+## Adding a New Language
+
+To add support for a new language in FluentMind:
+
+1. **Prepare Language Files**:
+   - Create a new folder in the `languages` directory with the language code (e.g., `fr` for French).
+   - Add these required files:
+     - `config.json`: Contains language-specific settings
+     - `dictionary.txt`: List of common words (one per line)
+     - `stopwords.txt`: Common words to ignore (articles, prepositions, etc.)
+
+2. **Update Configuration**:
+   - Edit `config.json` to include language metadata:
+     ```json
+     {
+       "name": "French",
+       "code": "fr",
+       "dictionary": "languages/fr/dictionary.txt",
+       "stopwords": "languages/fr/stopwords.txt"
+     }
+     ```
+
+3. **Restart the Application**:
+   - The new language should now be available in the language selection dropdown.
+
+## Adding Dictionaries
+
+FluentMind supports custom dictionaries for better word recognition and translation. Here's how to add them:
+
+1. **Formatting Rules**:
+   - Each dictionary entry should be on a new line
+   - Use `###` to separate words from their translations
+   - Example:
+     ```
+     hello###hola
+     goodbye###adiós
+     ```
+
+2. **Adding a Dictionary**:
+   - Place your dictionary file in the `dictionaries` folder
+   - The filename should follow the pattern: `[source_lang]-[target_lang].txt` (e.g., `en-es.txt`)
+   - Each line should contain a word/phrase pair separated by `###`
+
+3. **Using Your Dictionary**:
+   - The application will automatically detect and use the appropriate dictionary based on the selected languages
+   - Dictionaries are loaded when the application starts
 
 ## Troubleshooting
 
