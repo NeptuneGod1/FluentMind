@@ -309,46 +309,73 @@ def get_words_for_readability(text: str, language_id: int) -> list:
     words_data = []
 
     if not text or not text.strip():
+        print("Warning: Empty text provided for readability calculation.")
         return words_data
 
     language = Language.query.get(language_id)
-    if not language or language.spacy_model_status != "available":
-        print(f"Warning: SpaCy model not available for language '{language.name}'. Cannot calculate readability.")
-        return words_data # Return empty if model not available
-
-    nlp = get_spacy_model(language.name)
-    if not nlp:
-        print(f"Warning: SpaCy model failed to load for language '{language.name}'. Cannot calculate readability.")
+    if not language:
+        print(f"Error: Language with ID {language_id} not found.")
         return words_data
+        
+    print(f"Processing text for language: {language.name} (ID: {language_id})")
+    print(f"SpaCy model status: {getattr(language, 'spacy_model_status', 'unknown')}")
+    
+    # Try to get the SpaCy model
+    try:
+        nlp = get_spacy_model(language.name)
+        if nlp is None:
+            print(f"Error: Failed to load SpaCy model for language '{language.name}'.")
+            # Instead of returning empty, we'll continue with basic word counting
+            # This ensures we at least get a word count, even if readability is 0%
+            words = [word for word in text.split() if word.strip()]
+            return [{'status': 0, 'ignored': False} for _ in words]
+    except Exception as e:
+        print(f"Error loading SpaCy model for {language.name}: {str(e)}")
+        # Fall back to basic word counting
+        words = [word for word in text.split() if word.strip()]
+        return [{'status': 0, 'ignored': False} for _ in words]
 
-    doc = nlp(text)
-    # Collect all unique lemmas from the text for a single database query
-    lemmas_in_text = set()
-    for token in doc:
-        if token.is_alpha and not token.is_stop:
-            lemma = token.lemma_.lower()
-            if lemma != "-pron-": # Skip generic pronoun lemmas
-                lemmas_in_text.add(lemma)
+    try:
+        # Process text with SpaCy
+        doc = nlp(text)
+        
+        # Collect all unique lemmas from the text for a single database query
+        lemmas_in_text = set()
+        for token in doc:
+            if token.is_alpha and not token.is_stop:
+                lemma = token.lemma_.lower()
+                if lemma != "-pron-": # Skip generic pronoun lemmas
+                    lemmas_in_text.add(lemma)
 
-    # Query existing vocab terms for the lemmas in this text
-    existing_vocab = {}
-    if lemmas_in_text:
-        vocab_entries = VocabTerm.query.filter(
-            VocabTerm.language_id == language_id,
-            VocabTerm.lemma.in_(list(lemmas_in_text))
-        ).all()
-        existing_vocab = {entry.lemma: entry for entry in vocab_entries}
+        # Query existing vocab terms for the lemmas in this text
+        existing_vocab = {}
+        if lemmas_in_text:
+            vocab_entries = VocabTerm.query.filter(
+                VocabTerm.language_id == language_id,
+                VocabTerm.lemma.in_(list(lemmas_in_text))
+            ).all()
+            existing_vocab = {entry.lemma: entry for entry in vocab_entries}
 
-    for token in doc:
-        if token.is_alpha:
-            lemma = token.lemma_.lower()
-            # Use token.is_stop to determine if it should be 'ignored'
-            is_ignored = token.is_stop or (lemma == "-pron-") # Also ignore generic pronouns
-            
-            status = 0 # Default to unknown
-            if lemma in existing_vocab:
-                status = existing_vocab[lemma].status
-            
-            words_data.append({'status': status, 'ignored': is_ignored})
+        # Process each token in the document
+        for token in doc:
+            if token.is_alpha:
+                lemma = token.lemma_.lower()
+                # Use token.is_stop to determine if it should be 'ignored'
+                is_ignored = token.is_stop or (lemma == "-pron-") # Also ignore generic pronouns
+                
+                status = 0 # Default to unknown
+                if lemma in existing_vocab:
+                    status = existing_vocab[lemma].status
+                
+                words_data.append({'status': status, 'ignored': is_ignored})
+        
+        print(f"Processed {len(words_data)} words with SpaCy")
+        
+    except Exception as e:
+        print(f"Error processing text with SpaCy: {str(e)}")
+        # Fall back to basic word counting if SpaCy processing fails
+        words = [word for word in text.split() if word.strip()]
+        words_data = [{'status': 0, 'ignored': False} for _ in words]
+        print(f"Fell back to basic word counting: {len(words_data)} words")
 
     return words_data

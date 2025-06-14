@@ -1322,14 +1322,29 @@ def add_lesson_post(lang_id):
         timestamps=timestamps_json,
         timestamp_offset=0.0,
         readability_score=0.0, # Will be calculated below
+        word_count=count_words(text_content_to_save),  # Calculate word count
     )
 
-    # Calculate readability score
+    # Calculate word count and readability score
+    new_lesson.word_count = count_words(new_lesson.text_content)
     words_for_readability = get_words_for_readability(new_lesson.text_content, lang_id)
     new_lesson.readability_score = compute_readability(words_for_readability)
-
+    
+    # Print debug information
+    print(f"\n=== DEBUG: Adding new lesson ===")
+    print(f"Title: {new_lesson.title}")
+    print(f"Word count: {new_lesson.word_count}")
+    print(f"Readability score: {new_lesson.readability_score}")
+    print(f"Language ID: {lang_id}")
+    
     db.session.add(new_lesson)
-    db.session.commit()
+    try:
+        db.session.commit()
+        print("Successfully committed lesson to database")
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error committing to database: {e}")
+        raise
     flash(f'Lesson "{new_lesson.title}" added.', "success")
     return redirect(url_for("language_lessons", lang_name=language.name.lower()))
 

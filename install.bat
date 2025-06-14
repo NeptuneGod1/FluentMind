@@ -119,54 +119,36 @@ echo ===============================================
 echo Installing required packages...
 echo ===============================================
 
-:: Upgrade pip
-echo [1/4] Upgrading pip...
-python -m pip install --upgrade pip
+:: Upgrade pip and setuptools
+echo [1/3] Upgrading pip and setuptools...
+python -m pip install --upgrade pip setuptools wheel
 if %ERRORLEVEL% NEQ 0 (
-    echo [WARNING] Failed to upgrade pip. Continuing anyway...
+    echo [WARNING] Failed to upgrade pip/setuptools. Continuing anyway...
 )
 
-:: Install core dependencies
-echo [2/4] Installing core dependencies...
-python -m pip install --upgrade setuptools wheel
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Failed to install core dependencies
+:: Install from requirements.txt
+echo [2/3] Installing from requirements.txt...
+if exist "requirements.txt" (
+    python -m pip install -r requirements.txt
+    if %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] Failed to install requirements
+        pause
+        exit /b 1
+    )
+    echo [OK] Successfully installed all requirements
+) else (
+    echo [ERROR] requirements.txt not found
     pause
     exit /b 1
 )
 
-:: Install pandas
-echo [3/4] Installing pandas...
-python -m pip install --upgrade --prefer-binary pandas
+:: Verify spaCy installation
+echo [3/3] Verifying spaCy installation...
+python -c "import spacy; print(f'spaCy version: {spacy.__version__}')" >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo [WARNING] Failed to install pandas. Some features may not work correctly.
-)
-
-:: Install from requirements.txt
-if exist "requirements.txt" (
-    echo [4/4] Installing from requirements.txt...
-    for /f "usebackq delims=" %%p in ("requirements.txt") do (
-        echo Installing %%p...
-        python -m pip install --prefer-binary "%%p"
-        if !ERRORLEVEL! NEQ 0 (
-            echo [WARNING] Failed to install: %%p
-        )
-    )
-) else (
-    echo [INFO] requirements.txt not found. Installing spaCy only...
-    python -m pip install -U spacy
-)
-
-:: Install spaCy if not already installed
-python -m pip show spacy >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo Installing spaCy...
-    python -m pip install -U spacy
-    if %ERRORLEVEL% NEQ 0 (
-        echo [ERROR] Failed to install spaCy
-        pause
-        exit /b 1
-    )
+    echo [ERROR] spaCy installation verification failed
+    pause
+    exit /b 1
 )
 
 :: Download language models
@@ -176,7 +158,7 @@ echo Downloading language models...
 echo This may take a while depending on your internet connection.
 echo ===============================================
 
-set "MODELS=de_core_news_sm es_core_news_sm fr_core_news_sm it_core_news_sm nl_core_news_sm pt_core_news_sm ru_core_news_sm zh_core_web_sm xx_ent_wiki_sm"
+set "MODELS=en_core_web_sm de_core_news_sm es_core_news_sm fr_core_news_sm it_core_news_sm nl_core_news_sm pt_core_news_sm ru_core_news_sm zh_core_web_sm xx_ent_wiki_sm"
 set "TOTAL=0"
 set "COUNT=1"
 
@@ -185,13 +167,31 @@ for %%m in (%MODELS%) do set /a TOTAL+=1
 for %%m in (%MODELS%) do (
     echo.
     echo [%COUNT%/%TOTAL%] Downloading %%m...
-    python -m spacy download %%m --no-deps
+    python -m spacy download %%m
     if !ERRORLEVEL! EQU 0 (
         echo [OK] Successfully downloaded %%m
     ) else (
         echo [WARNING] Failed to download %%m
     )
     set /a COUNT+=1
+)
+
+:: Verify model downloads
+echo.
+echo ===============================================
+echo Verifying model downloads...
+echo ===============================================
+python -c "import spacy
+for model in ['en_core_web_sm', 'it_core_news_sm']:
+    try:
+        nlp = spacy.load(model)
+        print(f'[OK] Successfully loaded: {model}')
+    except Exception as e:
+        print(f'[ERROR] Failed to load {model}: {str(e)}')
+        exit(1)"
+
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARNING] Some models failed to load. The application may not work correctly.
 )
 
 echo.
