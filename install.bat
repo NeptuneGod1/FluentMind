@@ -21,11 +21,9 @@ echo =============================================== >> "%LOG_FILE%"
 
 :: Ensure we're running in a visible window
 if "%1"=="" (
-    if "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
-        start "" /wait "%SystemRoot%\Sysnative\cmd.exe" /c ""%SELF%" run_in_console"
-    ) else (
-        start "" /wait cmd /c ""%SELF%" run_in_console"
-    )
+    set "CMD=cmd"
+    if exist "%SystemRoot%\Sysnative\cmd.exe" set "CMD=%SystemRoot%\Sysnative\cmd.exe"
+    start "" /wait %CMD% /c ""%SELF%" run_in_console"
     exit /b
 )
 
