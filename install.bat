@@ -1,30 +1,47 @@
 @echo off
-REM ModernLWT3 - Robust one-click installer for Windows
+:: ModernLWT3 - Robust one-click installer for Windows
+:: This script will install all required dependencies for ModernLWT3
 
-:: Set console title
+:: Set console title and configuration
 title ModernLWT3 - Installation
-
-:: Enable delayed expansion for variables in loops
+color 0A
 setlocal enabledelayedexpansion
 
-:: Set color for better visibility (green text on black background)
-color 0A
-
-:: Set error handling
+:: Set error handling and logging
 set "ERROR_LEVEL=0"
-set "LOG_FILE=install.log"
+set "LOG_FILE=%~dp0install.log"
+set "SELF=%~dpnx0"
 
+:: Clear previous log and write header
 echo. > "%LOG_FILE%"
-
 echo =============================================== >> "%LOG_FILE%"
 echo  ModernLWT3 - Language Learning with Technology >> "%LOG_FILE%"
+echo  Installation Log - %DATE% %TIME% >> "%LOG_FILE%"
 echo =============================================== >> "%LOG_FILE%"
-echo. >> "%LOG_FILE%"
 
-:display_header
+:: Ensure we're running in a visible window
+if "%1"=="" (
+    if "%PROCESSOR_ARCHITECTURE%"=="AMD64" (
+        start "" /wait "%SystemRoot%\Sysnative\cmd.exe" /c ""%SELF%" run_in_console"
+    ) else (
+        start "" /wait cmd /c ""%SELF%" run_in_console"
+    )
+    exit /b
+)
+
+:: Main entry point
+if "%1"=="run_in_console" (
+    shift
+    goto main
+)
+
+:main
+:: Display header
 cls
 echo ===============================================
 echo  ModernLWT3 - Language Learning with Technology
+echo  Installation - %DATE% %TIME%
+echo  Log file: %LOG_FILE%
 echo ===============================================
 echo.
 echo This will install the following components:
@@ -36,7 +53,10 @@ echo.
 echo Installation log: %CD%\%LOG_FILE%
 echo.
 
-if "%1"=="--silent" goto silent_mode
+if "%1"=="--silent" (
+    set SILENT_MODE=1
+    shift
+)
 
 :: Function to display a message and log it
 :log_message
@@ -269,8 +289,13 @@ echo.
 echo For help or to report issues, please refer to the documentation.
 echo ===============================================
 
-:: Always wait for user input before closing
-pause
+if not defined SILENT_MODE (
+    echo.
+    echo ===============================================
+    echo Installation completed! Press any key to exit...
+    echo ===============================================
+    pause >nul
+)
 
 goto :end_installation
 
