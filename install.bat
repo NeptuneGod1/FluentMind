@@ -157,11 +157,11 @@ if not exist "venv\" (
         echo [ERROR] Failed to create virtual environment.
         echo Please check if you have sufficient permissions.
         echo.
-        echo See %CD%\%LOG_FILE% for more details.
+        echo See %CD%\%LOG_FILE% for details.
         echo ===============================================
         echo.
         pause
-        exit /b 1
+        goto :error_exit
     ) else (
         call :log_message "Virtual environment created successfully."
     )
@@ -268,8 +268,11 @@ echo The application will be available at: http://localhost:5000
 echo.
 echo For help or to report issues, please refer to the documentation.
 echo ===============================================
-echo.
+
+:: Always wait for user input before closing
 pause
+
+goto :end_installation
 
 :: Create a simple test script to verify installation
 echo import spacy > test_models.py
@@ -289,6 +292,8 @@ echo ===============================================
 %PYTHON_CMD% test_models.py
 del test_models.py
 
+
+:end_installation
 echo.
 echo ===============================================
 echo Installation complete!
@@ -301,3 +306,5 @@ echo.
 echo Or on Windows, you can use the start.bat file.
 echo.
 pause
+
+exit /b 0
