@@ -43,6 +43,53 @@
     .cefr-segment-c1 { background-color: #5cb85c; } /* Green */
     .cefr-segment-c2 { background-color: #4cae4c; } /* Darker Green */
     
+    /* 
+    Delete button styles 
+    The delete button is positioned in the top-right corner of each language card.
+    It's initially hidden (opacity: 0) and fades in when hovering over the card.
+    On hover, the button turns red to indicate a destructive action.
+    */
+    .language-card {
+        position: relative;  /* Needed for absolute positioning of the delete button */
+        overflow: visible;   /* Ensures the delete button is fully visible */
+    }
+    
+    .delete-language-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;        /* Makes the button circular */
+        background-color: rgba(255, 255, 255, 0.9);  /* Semi-transparent white */
+        border: 1px solid #e0e0e0;  /* Light gray border */
+        color: #666;               /* Dark gray text */
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;      /* Center the '×' vertically */
+        justify-content: center;  /* Center the '×' horizontally */
+        opacity: 0;               /* Initially hidden */
+        transition: all 0.2s ease; /* Smooth fade-in animation */
+        z-index: 10;              /* Ensure button stays above other elements */
+        padding: 0;
+        margin: 0;
+        line-height: 1;           /* Better vertical centering of the '×' */
+    }
+    
+    /* Show the delete button when hovering over the card */
+    .language-card:hover .delete-language-btn {
+        opacity: 1;
+    }
+    
+    /* Style the delete button on hover */
+    .delete-language-btn:hover {
+        background-color: #ff4444;  /* Red background */
+        color: white;              /* White '×' */
+        border-color: #ff4444;      /* Red border to match background */
+    }
+    
     @keyframes cefr-glow-pulse {
         0% { box-shadow: 0 1px 6px 0 var(--cefr-glow, #fff), 0 0 0 1px rgba(0,0,0,0.04); }
         50% { box-shadow: 0 2px 12px 2px var(--cefr-glow, #fff), 0 0 0 1px rgba(0,0,0,0.07); }
@@ -205,6 +252,10 @@
             {% for lang in languages %}
                 <div class="language-card-container" data-language-id="{{ lang.id }}">
                     <div class="language-card">
+                        <!-- Delete Button -->
+                        <button class="delete-language-btn" title="Delete Language" data-lang-id="{{ lang.id }}" data-lang-name="{{ lang.name }}">
+                            &times;
+                        </button>
                         <!-- Language Card Content -->
                         <a href="{{ url_for('language_lessons', lang_name=lang.name.lower()) }}" class="language-card-link">
                             <!-- Card Image -->
@@ -279,4 +330,61 @@
     </div>
 
     <!-- Maybe add a footer later -->
-{% endblock %} 
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+/**
+ * Handles the deletion of a language when the delete button is clicked.
+ * 
+ * This script:
+ * 1. Listens for clicks on delete buttons in language cards
+ * 2. Shows a confirmation dialog before proceeding
+ * 3. Sends a DELETE request to the server
+ * 4. Handles the response by removing the card from the UI or showing an error
+ */
+document.querySelectorAll('.delete-language-btn').forEach(button => {
+    button.addEventListener('click', function(e) {
+        // Prevent the default action and stop event bubbling
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Get the language ID and name from data attributes
+        const langId = this.getAttribute('data-lang-id');
+        const langName = this.getAttribute('data-lang-name');
+        
+        // Show confirmation dialog
+        if (confirm(`Are you sure you want to delete ${langName}? This action cannot be undone.`)) {
+            // Send DELETE request to the server
+            fetch(`/delete_language/${langId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                if (response.ok) {
+                    // If deletion was successful, find the card and remove it with a fade-out animation
+                    const card = document.querySelector(`.language-card-container[data-language-id="${langId}"]`);
+                    if (card) {
+                        // Fade out the card
+                        card.style.opacity = '0';
+                        // Remove the card from the DOM after the fade-out animation completes
+                        setTimeout(() => card.remove(), 300);
+                    }
+                } else {
+                    // Show error message if the server responded with an error
+                    alert('Failed to delete language. Please try again.');
+                }
+            })
+            .catch(error => {
+                // Log the error and show a user-friendly message
+                console.error('Error:', error);
+                alert('An error occurred while deleting the language.');
+            });
+        }
+    });
+});
+</script>
+{% endblock %}
