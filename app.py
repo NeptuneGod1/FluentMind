@@ -942,10 +942,16 @@ def delete_language(lang_id):
             return jsonify({"success": False, "message": "Language not found."}), 404
             
         # Delete related records in the correct order to avoid foreign key constraint violations
-        # 1. Delete any SRS reviews for terms in this language (if ReviewLog model exists)
-        if 'ReviewLog' in globals():
-            ReviewLog.query.join(VocabTerm, ReviewLog.vocab_term_id == VocabTerm.id)\
-                          .filter(VocabTerm.language_id == lang_id).delete(synchronize_session=False)
+        # 1. Delete any SRS reviews for terms in this language
+        # Note: ReviewLog is imported from fsrs module, not a SQLAlchemy model
+        # We'll handle this by first getting all term IDs and then deleting in chunks
+        term_ids = [term[0] for term in db.session.query(VocabTerm.id).filter_by(language_id=lang_id).all()]
+        if term_ids:
+            # Delete review logs in chunks to avoid very large queries
+            chunk_size = 100
+            for i in range(0, len(term_ids), chunk_size):
+                chunk = term_ids[i:i + chunk_size]
+                db.session.query(ReviewLog).filter(ReviewLog.vocab_term_id.in_(chunk)).delete(synchronize_session=False)
         
         # 2. Delete all vocabulary terms for this language
         VocabTerm.query.filter_by(language_id=lang_id).delete(synchronize_session=False)
