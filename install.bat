@@ -1,5 +1,5 @@
 @echo off
-:: ModernLWT3 - Robust one-click installer for Windows
+:: ModernLWT3 - Windows Installer
 :: This script will install all required dependencies for ModernLWT3
 
 :: Set console title and configuration
@@ -8,8 +8,8 @@ color 0A
 setlocal enabledelayedexpansion
 
 :: Set error handling and logging
-set "ERROR_LEVEL=0"
 set "LOG_FILE=%~dp0install.log"
+set "PYTHON_CMD=python"
 
 :: Clear previous log and write header
 echo. > "%LOG_FILE%"
@@ -18,27 +18,35 @@ echo  ModernLWT3 - Language Learning with Technology >> "%LOG_FILE%"
 echo  Installation Log - %DATE% %TIME% >> "%LOG_FILE%"
 echo =============================================== >> "%LOG_FILE%"
 
-:: If launched by double-clicking, open in a new window
+:: Main execution starts here
 if "%1"=="" (
-    cmd /k ""%~f0" run_in_console"
+    echo Starting ModernLWT3 installation...
+    echo This window will remain open to show installation progress.
+    echo.
+    echo If installation doesn't start automatically:
+    echo 1. Close this window
+    echo 2. Open Command Prompt as Administrator
+    echo 3. Navigate to this folder
+    echo 4. Run: install.bat run
+    echo.
+    pause
+    start "" /wait cmd /k ""%~f0" run"
     exit /b
 )
 
-:: Main entry point
-if "%1"=="run_in_console" (
+if "%1"=="run" (
     shift
-    goto main
+    goto install_start
 )
 
 goto :eof
 
-:main
+:install_start
 :: Display header
 cls
 echo ===============================================
-echo  ModernLWT3 - Language Learning with Technology
-echo  Installation - %DATE% %TIME%
-echo  Log file: %LOG_FILE%
+echo  ModernLWT3 - Installation
+  echo  %DATE% %TIME%
 echo ===============================================
 echo.
 echo This will install the following components:
@@ -54,6 +62,151 @@ if "%1"=="--silent" (
     set SILENT_MODE=1
     shift
 )
+
+:: Check Python installation
+echo Checking Python installation...
+where python >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Python is not in your PATH.
+    echo Please install Python 3.9+ from https://www.python.org/downloads/
+    echo Make sure to check "Add Python to PATH" during installation.
+    pause
+    exit /b 1
+)
+
+python -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)"
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Python 3.9 or higher is required.
+    echo Detected version:
+    python --version
+    pause
+    exit /b 1
+)
+
+echo [OK] Python !python --version! is installed.
+
+:: Create virtual environment
+echo.
+echo ===============================================
+echo Creating Python virtual environment...
+echo ===============================================
+
+if not exist "venv\" (
+    python -m venv venv
+    if %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] Failed to create virtual environment
+        pause
+        exit /b 1
+    )
+    echo [OK] Virtual environment created.
+else
+    echo [INFO] Virtual environment already exists.
+)
+
+:: Activate virtual environment
+call venv\Scripts\activate.bat
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Failed to activate virtual environment
+    pause
+    exit /b 1
+)
+
+echo [OK] Virtual environment activated.
+
+:: Install required packages
+echo.
+echo ===============================================
+echo Installing required packages...
+echo ===============================================
+
+:: Upgrade pip
+echo [1/4] Upgrading pip...
+python -m pip install --upgrade pip
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARNING] Failed to upgrade pip. Continuing anyway...
+)
+
+:: Install core dependencies
+echo [2/4] Installing core dependencies...
+python -m pip install --upgrade setuptools wheel
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Failed to install core dependencies
+    pause
+    exit /b 1
+)
+
+:: Install pandas
+echo [3/4] Installing pandas...
+python -m pip install --upgrade --prefer-binary pandas
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARNING] Failed to install pandas. Some features may not work correctly.
+)
+
+:: Install from requirements.txt
+if exist "requirements.txt" (
+    echo [4/4] Installing from requirements.txt...
+    for /f "usebackq delims=" %%p in ("requirements.txt") do (
+        echo Installing %%p...
+        python -m pip install --prefer-binary "%%p"
+        if !ERRORLEVEL! NEQ 0 (
+            echo [WARNING] Failed to install: %%p
+        )
+    )
+) else (
+    echo [INFO] requirements.txt not found. Installing spaCy only...
+    python -m pip install -U spacy
+)
+
+:: Install spaCy if not already installed
+python -m pip show spacy >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo Installing spaCy...
+    python -m pip install -U spacy
+    if %ERRORLEVEL% NEQ 0 (
+        echo [ERROR] Failed to install spaCy
+        pause
+        exit /b 1
+    )
+)
+
+:: Download language models
+echo.
+echo ===============================================
+echo Downloading language models...
+echo This may take a while depending on your internet connection.
+echo ===============================================
+
+set "MODELS=de_core_news_sm es_core_news_sm fr_core_news_sm it_core_news_sm nl_core_news_sm pt_core_news_sm ru_core_news_sm zh_core_web_sm xx_ent_wiki_sm"
+set "TOTAL=0"
+set "COUNT=1"
+
+for %%m in (%MODELS%) do set /a TOTAL+=1
+
+for %%m in (%MODELS%) do (
+    echo.
+    echo [%COUNT%/%TOTAL%] Downloading %%m...
+    python -m spacy download %%m --no-deps
+    if !ERRORLEVEL! EQU 0 (
+        echo [OK] Successfully downloaded %%m
+    ) else (
+        echo [WARNING] Failed to download %%m
+    )
+    set /a COUNT+=1
+)
+
+echo.
+echo ===============================================
+echo Installation Complete!
+echo ===============================================
+echo.
+echo To start the application:
+echo 1. Open a command prompt in this directory
+echo 2. Run: venv\Scripts\activate
+echo 3. Run: python app.py
+echo.
+echo The application will be available at: http://localhost:5000
+echo.
+pause
 
 :: Function to display a message and log it
 :log_message
@@ -215,18 +368,43 @@ if %ERRORLEVEL% NEQ 0 (
     call :log_message "Pip upgraded successfully."
 )
 
-:: Install required packages
+:: Install required packages with verbose output
 call :log_message "Installing required packages..."
 echo ===============================================
 echo Installing required packages...
 echo ===============================================
-python -m pip install --upgrade pip setuptools wheel >> "%LOG_FILE%" 2>&1
-python -m pip install --upgrade --prefer-binary pandas >> "%LOG_FILE%" 2>&1
-python -m pip install --prefer-binary -r requirements.txt >> "%LOG_FILE%" 2>&1
 
-:: Install spaCy if not already installed
-call :log_message "Installing spaCy..."
-python -m pip install -U spacy >> "%LOG_FILE%" 2>&1
+echo [1/4] Upgrading pip, setuptools, and wheel...
+python -m pip install --upgrade pip setuptools wheel
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Failed to upgrade pip/setuptools/wheel
+    exit /b 1
+)
+
+echo [2/4] Installing pandas...
+python -m pip install --upgrade --prefer-binary pandas
+if %ERRORLEVEL% NEQ 0 (
+    echo [WARNING] Failed to install pandas
+)
+
+:: Install requirements if file exists
+if exist "requirements.txt" (
+    echo [3/4] Installing requirements from requirements.txt...
+    for /f "tokens=*" %%p in (requirements.txt) do (
+        echo Installing %%p...
+        python -m pip install --prefer-binary %%p
+    )
+    if %ERRORLEVEL% NEQ 0 (
+        echo [WARNING] Some requirements failed to install. Check install.log
+    )
+)
+
+echo [4/4] Installing spaCy...
+python -m pip install -U spacy
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Failed to install spaCy
+    exit /b 1
+)
 
 :: Download language models
 echo.
@@ -243,13 +421,16 @@ set "SUCCESS_MODELS=0"
 :: Count total models
 for %%m in (%MODELS%) do set /a TOTAL_MODELS+=1
 
-:: Download each model
+:: Download each model with progress
 set "CURRENT_MODEL=1"
 for %%m in (%MODELS%) do (
     call :log_message "[!CURRENT_MODEL!/!TOTAL_MODELS!] Downloading %%m..."
+    echo.
+    echo ===============================================
     echo [!CURRENT_MODEL!/!TOTAL_MODELS!] Downloading %%m...
+    echo ===============================================
     
-    python -m spacy download %%m --no-deps >> "%LOG_FILE%" 2>&1
+    python -m spacy download %%m --no-deps
     if !ERRORLEVEL! NEQ 0 (
         call :log_message "[WARNING] Failed to download %%m"
         echo [WARNING] Failed to download %%m
