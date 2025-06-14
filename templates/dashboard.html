@@ -67,10 +67,9 @@
     }
     
     .language-cards-container {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
         gap: 20px;
-        justify-content: flex-start;
         max-width: 1200px;
         margin: 0 auto;
         padding: 20px 15px;
@@ -78,16 +77,14 @@
     }
     
     .language-card-container {
-        flex: 0 0 calc(33.333% - 14px); /* 3 cards per row with gap */
-        max-width: 350px;
-        min-width: 280px;
+        width: 100%;
+        max-width: 100%;
         box-sizing: border-box;
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
         background: white;
-        margin-bottom: 20px;
     }
     
     @media (max-width: 992px) {
@@ -204,6 +201,7 @@
     <div class="dashboard-content">
         <h2>Select a Language</h2>
         <div class="language-cards-container">
+            <!-- Existing Language Cards -->
             {% for lang in languages %}
                 <div class="language-card-container" data-language-id="{{ lang.id }}">
                     <div class="language-card">
@@ -254,9 +252,29 @@
                         </a>
                     </div>
                 </div>
-            {% else %}
-                <p>No languages added yet. Add one in Settings!</p>
             {% endfor %}
+            
+            <!-- Add Language Card (always last) -->
+            <div class="language-card-container">
+                <div class="language-card" style="cursor: pointer;" onclick="window.location.href='{{ url_for('settings') }}#add-language'">
+                    <div class="language-card-image" style="background-color: #f8f9fa; display: flex; align-items: center; justify-content: center; color: #6c757d;">
+                        <div style="text-align: center; padding: 20px;">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 10px;">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <h3 style="margin: 0; color: #495057;">Add Language</h3>
+                        </div>
+                    </div>
+                    <div class="language-card-content" style="text-align: center; padding: 15px;">
+                        <p style="margin: 0; color: #6c757d;">Click to add a new language</p>
+                    </div>
+                </div>
+            </div>
+            
+            {% if not languages %}
+                <p style="grid-column: 1 / -1; text-align: center; margin-top: 20px;">No languages added yet. Click 'Add Language' to get started!</p>
+            {% endif %}
         </div>
     </div>
 
