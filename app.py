@@ -16,7 +16,7 @@ from flask import (
     current_app,
 )  # Added jsonify, Response, and send_file
 from werkzeug.utils import secure_filename
-from extensions import db, migrate, Setting, get_spacy_model  # Import get_spacy_model from extensions
+from extensions import db, migrate, Setting, get_spacy_model, SPACY_MODEL_MAP  # Import shared models and utilities from extensions
 from sqlalchemy.exc import IntegrityError  # Import IntegrityError
 from sqlalchemy import func
 from datetime import (
@@ -905,19 +905,77 @@ def add_language():
 
 @app.route("/delete_language/<int:lang_id>", methods=["POST"])
 def delete_language(lang_id):
-    language = db.session.get(Language, lang_id)
-    if language:
-        # Future: Delete associated Lessons, Vocabulary terms first
-        # e.g., Lesson.query.filter_by(language_id=lang_id).delete()
-        #      VocabEntry.query.filter_by(language_id=lang_id).delete()
-
+    """
+    Delete a language and all its associated data.
+    
+    This endpoint handles the deletion of a language and all its related data including:
+    - SRS review logs
+    - Vocabulary terms
+    - Lessons
+    - SRS settings
+    
+    Args:
+        lang_id (int): The ID of the language to delete
+        
+    Returns:
+        JSON: A JSON response indicating success or failure
+        
+    HTTP Methods:
+        POST
+        
+    Example Response (Success):
+        {
+            "success": True,
+            "message": "Language 'Spanish' and all associated data have been deleted."
+        }
+        
+    Example Response (Error):
+        {
+            "success": False,
+            "message": "Language not found."
+        }
+    """
+    try:
+        # Get the language by ID
+        language = db.session.get(Language, lang_id)
+        if not language:
+            return jsonify({"success": False, "message": "Language not found."}), 404
+            
+        # Delete related records in the correct order to avoid foreign key constraint violations
+        # 1. Delete any SRS reviews for terms in this language (if ReviewLog model exists)
+        if 'ReviewLog' in globals():
+            ReviewLog.query.join(VocabTerm, ReviewLog.vocab_term_id == VocabTerm.id)\
+                          .filter(VocabTerm.language_id == lang_id).delete(synchronize_session=False)
+        
+        # 2. Delete all vocabulary terms for this language
+        VocabTerm.query.filter_by(language_id=lang_id).delete(synchronize_session=False)
+        
+        # 3. Delete all lessons for this language
+        Lesson.query.filter_by(language_id=lang_id).delete(synchronize_session=False)
+        
+        # 4. Delete any SRS settings for this language
+        SRSSettings.query.filter_by(language_id=lang_id).delete(synchronize_session=False)
+        
+        # 5. Finally, delete the language itself
         db.session.delete(language)
         db.session.commit()
-        flash(f'Language "{language.name}" deleted successfully.', "success")
-    else:
-        flash("Language not found.", "error")
-
-    return redirect(url_for("settings"))
+        
+        # Return success response
+        return jsonify({
+            "success": True, 
+            "message": f'Language "{language.name}" and all associated data have been deleted.'
+        })
+        
+    except Exception as e:
+        # Rollback any database changes if an error occurs
+        db.session.rollback()
+        # Log the error for debugging
+        app.logger.error(f"Error deleting language: {str(e)}")
+        # Return error response
+        return jsonify({
+            "success": False, 
+            "message": "An error occurred while deleting the language."
+        }), 500
 
 
 # -----------------------------
@@ -3075,32 +3133,70 @@ def get_timestamp_offset(lesson_id):
 
 
 def download_spacy_model_async(model_name):
+    """
+    Download a spaCy model asynchronously.
+    
+    Args:
+        model_name (str): Name of the spaCy model to download (e.g., 'en_core_web_sm')
+        
+    Returns:
+        bool: True if the model was successfully downloaded, False otherwise
+    """
     try:
-        # Check if the model is already installed
+        # First, try to load the model to check if it's already installed
         try:
             spacy.load(model_name)
             logging.info(f"SpaCy model '{model_name}' is already installed.")
             return True
         except OSError:
-            logging.info(
-                f"SpaCy model '{model_name}' not found locally. Attempting download..."
+            logging.info(f"SpaCy model '{model_name}' not found locally. Attempting download...")
+        
+        # Try different methods to download the model
+        methods = [
+            # Method 1: Try with python -m pip
+            lambda: subprocess.run(
+                [sys.executable, "-m", "pip", "install", f"{model_name}"],
+                capture_output=True, text=True, check=True
+            ),
+            # Method 2: Try with python -m spacy download
+            lambda: subprocess.run(
+                [sys.executable, "-m", "spacy", "download", model_name],
+                capture_output=True, text=True, check=True
+            ),
+            # Method 3: Try with pip directly (as a fallback)
+            lambda: subprocess.run(
+                ["pip", "install", f"{model_name}"],
+                capture_output=True, text=True, check=True
             )
-
-        # Use subprocess to run the spacy download command
-        # This requires 'pip' to be in the system's PATH, or use sys.executable
-        command = [sys.executable, "-m", "spacy", "download", model_name]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-
-        logging.info(f"SpaCy model '{model_name}' downloaded successfully.")
-        logging.info(f"Download output: {result.stdout}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logging.error(
-            f"Failed to download SpaCy model '{model_name}'. Error: {e.stderr}"
-        )
+        ]
+        
+        last_error = None
+        
+        for method in methods:
+            try:
+                result = method()
+                # Verify the model was installed by trying to load it
+                try:
+                    spacy.load(model_name)
+                    logging.info(f"SpaCy model '{model_name}' downloaded and verified successfully.")
+                    logging.debug(f"Download output: {result.stdout}")
+                    return True
+                except OSError as e:
+                    logging.error(f"Model '{model_name}' failed to load after installation: {e}")
+                    last_error = e
+            except subprocess.CalledProcessError as e:
+                logging.warning(f"Download attempt failed: {e.stderr}")
+                last_error = e
+                continue
+        
+        # If we get here, all methods failed
+        error_msg = f"All download methods failed for model '{model_name}'. Last error: {str(last_error)}"
+        logging.error(error_msg)
         return False
+        
     except Exception as e:
-        logging.error(f"An unexpected error occurred during SpaCy model download: {e}")
+        error_msg = f"An unexpected error occurred during SpaCy model download: {str(e)}"
+        logging.error(error_msg)
         return False
 
 
