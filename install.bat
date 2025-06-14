@@ -10,7 +10,6 @@ setlocal enabledelayedexpansion
 :: Set error handling and logging
 set "ERROR_LEVEL=0"
 set "LOG_FILE=%~dp0install.log"
-set "SELF=%~dpnx0"
 
 :: Clear previous log and write header
 echo. > "%LOG_FILE%"
@@ -19,11 +18,9 @@ echo  ModernLWT3 - Language Learning with Technology >> "%LOG_FILE%"
 echo  Installation Log - %DATE% %TIME% >> "%LOG_FILE%"
 echo =============================================== >> "%LOG_FILE%"
 
-:: Ensure we're running in a visible window
+:: If launched by double-clicking, open in a new window
 if "%1"=="" (
-    set "CMD=cmd"
-    if exist "%SystemRoot%\Sysnative\cmd.exe" set "CMD=%SystemRoot%\Sysnative\cmd.exe"
-    start "" /wait %CMD% /c ""%SELF%" run_in_console"
+    cmd /k ""%~f0" run_in_console"
     exit /b
 )
 
@@ -32,6 +29,8 @@ if "%1"=="run_in_console" (
     shift
     goto main
 )
+
+goto :eof
 
 :main
 :: Display header
