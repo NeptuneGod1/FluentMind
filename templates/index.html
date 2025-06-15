@@ -62,12 +62,18 @@
                 </div>
                 <!-- Pagination Controls -->
                 <div id="pagination-controls" style="text-align: center; padding: 10px; display: flex; justify-content: center; align-items: center; margin-top: 10px; flex-shrink: 0;"> 
-                    <button id="repeat-page-btn" title="Repeat Page">&#x21BB;</button>
+                    <button id="repeat-range-btn" title="Repeat Page Range" class="btn btn-sm btn-outline-secondary me-1">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </button>
+                    <button id="repeat-page-btn" title="Repeat Page" class="btn btn-sm btn-outline-secondary me-1">&#x21BB;</button>
                     <button id="prev-page-btn" disabled>&lt; Prev</button>
                     <span id="page-info">Page 1 of 1</span>
                     <button id="next-page-btn" disabled>Next &gt;</button>
-                    <button id="repeat-sentence-btn" title="Repeat Sentence">&#x27F3;</button>
-                    <button id="adjust-timestamps-btn" title="Adjust Timestamps" style="margin-left: 10px;">⏱️ Adjust</button>
+                    
+                    <button id="repeat-sentence-btn" title="Repeat Sentence" class="btn btn-sm btn-outline-secondary me-1">&#x27F3;</button>
+                    <button id="adjust-timestamps-btn" title="Adjust Timestamps" class="btn btn-sm btn-outline-secondary">⏱️ Adjust</button>
+                    <button id="autoscroll-toggle-btn" title="Toggle Autoscroll" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrows-vertical"></i></button>
+
                 </div>
             </div>
         </div>
@@ -109,19 +115,73 @@
                 </div>
             </div>
 
-            {# Grammar Notes Button MOVED here #}
-            <div class="grammar-notes-control border-top">
-                 <a href="{{ url_for('view_grammar_notes', lesson_id=lesson.id) }}"
-                    class="btn btn-secondary w-100"> {# Changed class for better style #}
-                    View Grammar Notes
-                 </a>
+            {# Grammar Notes Section with LLM Selection #}
+            <div class="grammar-notes-control border-top p-2">
+                <div class="d-flex align-items-center">
+                    <select id="llm-selector" class="form-select form-select-sm me-2" style="flex: 1;">
+                        <option value="chatgpt">ChatGPT</option>
+                        <option value="gemini">Gemini</option>
+                    </select>
+                    <a href="#" id="view-grammar-notes" 
+                       data-item-type="lesson" 
+                       data-item-id="{{ lesson.id }}"
+                       class="btn btn-primary btn-sm">
+                        View Grammar Notes
+                    </a>
+                </div>
             </div>
-            {# End Grammar Notes Button #}
+            {# End Grammar Notes Section #}
+            
+            {# Add JavaScript for handling the LLM selection #}
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const viewGrammarBtn = document.getElementById('view-grammar-notes');
+                const llmSelector = document.getElementById('llm-selector');
+                
+                viewGrammarBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const itemType = this.dataset.itemType;
+                    const itemId = this.dataset.itemId;
+                    const llm = llmSelector.value;
+                    
+                    // Open the grammar notes in a new tab with the selected LLM
+                    window.open(`/view_grammar/${itemType}/${itemId}?llm=${llm}`, '_blank');
+                });
+            });
+            </script>
 
         </div>
     </div>
 
+    <!-- Page Range Modal -->
+    <div class="modal fade" id="pageRangeModal" tabindex="-1" aria-labelledby="pageRangeModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="pageRangeModalLabel">Set Page Range to Repeat</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="startPageInput" class="form-label">Start Page:</label>
+                        <input type="number" class="form-control" id="startPageInput" min="1">
+                    </div>
+                    <div class="mb-3">
+                        <label for="endPageInput" class="form-label">End Page:</label>
+                        <input type="number" class="form-control" id="endPageInput" min="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="applyRangeBtn">Apply</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {# Remove grammar modal #}
+
+
 
     {# New script tag for timestamps data #}
     <script type="application/json" id="timestamps-data">
@@ -145,5 +205,15 @@
 {% endblock %}
 
 {% block scripts %}
-{{ super() }} {# This will load script.js after currentLessonId is defined #}
+    <script src="{{ url_for('static', filename='js/page-range.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize the page range functionality after the DOM is fully loaded
+            if (typeof initializePageRange === 'function') {
+                initializePageRange();
+            }
+        });
+    </script>
 {% endblock %}
+
+

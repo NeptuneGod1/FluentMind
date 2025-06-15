@@ -9,7 +9,21 @@
     </a>
 </div>
 
-<h1 style="padding: 0 1rem;">{{ lesson.title }} - Grammar Notes</h1>
+<div class="d-flex justify-content-between align-items-center" style="padding: 0 1rem; margin-bottom: 1rem;">
+    <h1 style="margin: 0;">{{ lesson.title }} - Grammar Notes</h1>
+    <div class="d-flex gap-2">
+        <div class="input-group input-group-sm" style="width: auto;">
+            <label class="input-group-text" for="llm-selector">LLM:</label>
+            <select class="form-select" id="llm-selector" style="width: auto;">
+                <option value="gemini" {% if selected_llm == 'gemini' %}selected{% endif %}>Gemini</option>
+                <option value="chatgpt" {% if selected_llm == 'chatgpt' %}selected{% endif %}>ChatGPT</option>
+            </select>
+        </div>
+        <button id="regenerate-btn" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-sync-alt"></i> Regenerate
+        </button>
+    </div>
+</div>
 <hr style="margin: 1rem;">
 
 <div class="row" style="display: flex; flex-wrap: wrap; padding: 0 1rem;">
@@ -23,7 +37,14 @@
     <div class="col-md-6">
         <h2>Grammar Notes</h2>
         {# Apply pre-wrap style and let JS handle Markdown rendering #}
-        <div id="grammar-notes-content" style="white-space: pre-wrap; border: 1px solid #eee; padding: 15px; max-height: 70vh; overflow-y: auto;">
+        <div id="grammar-notes-content" style="white-space: pre-wrap; border: 1px solid #eee; padding: 15px; max-height: 70vh; overflow-y: auto; position: relative;">
+            {# Add loading overlay #}
+            <div id="loading-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.8); z-index: 10; display: flex; justify-content: center; align-items: center;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <span class="ms-2">Generating notes with <span id="current-llm">{{ selected_llm|title }}</span>...</span>
+            </div>
             {# Embed raw content within a hidden script tag for robust JS retrieval #}
             <script id="raw-grammar-data" type="application/json">
                 {{ grammar_summary | tojson }}
@@ -39,10 +60,44 @@
 {{ super() }}
 {# Add Marked.js library for Markdown rendering #}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{# Add Font Awesome for icons #}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script>
+    // Function to update the URL with new parameters
+    function updateUrlParams(params) {
+        const url = new URL(window.location.href);
+        Object.entries(params).forEach(([key, value]) => {
+            url.searchParams.set(key, value);
+        });
+        window.location.href = url.toString();
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const grammarContentDiv = document.getElementById('grammar-notes-content');
         const rawDataScriptTag = document.getElementById('raw-grammar-data');
+        const llmSelector = document.getElementById('llm-selector');
+        const regenerateBtn = document.getElementById('regenerate-btn');
+
+        // Handle LLM selection change
+        if (llmSelector) {
+            llmSelector.addEventListener('change', function() {
+                updateUrlParams({
+                    llm: this.value,
+                    regenerate: 'true'
+                });
+            });
+        }
+
+        // Handle regenerate button click
+        if (regenerateBtn) {
+            regenerateBtn.addEventListener('click', function() {
+                updateUrlParams({
+                    llm: llmSelector ? llmSelector.value : 'gemini',
+                    regenerate: 'true',
+                    _t: new Date().getTime() // Add timestamp to force reload
+                });
+            });
+        }
 
         if (grammarContentDiv && rawDataScriptTag) {
             try {
