@@ -47,7 +47,8 @@ let repeatLoopInterval = null;
 let currentRepeatMode = null; // 'page', 'sentence', or null
 let repeatLoopStartTime = 0;
 let repeatLoopEndTime = 0;
-let isRepeatModeActive = false; // New state variable for repeat mode
+let isRepeatModeActive = false;
+let isAutoscrollEnabled = true; // User-toggleable autoscroll state
 
 // --- Timestamp Offset Variable ---
 let timestampOffset = 0; // Global offset in seconds for all timestamps
@@ -77,6 +78,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (appContainer) {
         console.log("Initializing Reader-specific features.");
         initializeReader();
+        initializePageRange();
+
+        // --- Autoscroll Toggle ---
+        const autoscrollBtn = document.getElementById('autoscroll-toggle-btn');
+        if (autoscrollBtn) {
+            // Set initial state visual to match the new 'on' state styling
+            autoscrollBtn.classList.toggle('autoscroll-on', isAutoscrollEnabled);
+
+            autoscrollBtn.addEventListener('click', () => {
+                isAutoscrollEnabled = !isAutoscrollEnabled;
+                autoscrollBtn.classList.toggle('autoscroll-on', isAutoscrollEnabled);
+                console.log(`Autoscroll toggled: ${isAutoscrollEnabled}`);
+
+                // If autoscroll is turned off, immediately remove any active highlighting
+                if (!isAutoscrollEnabled) {
+                    document.querySelectorAll('.lesson-paragraph.current-segment').forEach(p => {
+                        p.classList.remove('current-segment');
+                    });
+                }
+            });
+        }
         initializeEditorButtons();
         createTooltipElement();
         initializeRepeatControls();
@@ -1495,18 +1517,17 @@ function renderPage(pageNumber) {
         return;
     }
 
-    // Only prevent page changes if repeat mode is active AND we're trying to change pages
-    // Allow page changes if video hasn't started playing yet (isVideoPlaying is false)
-    if (isRepeatModeActive && pageNumber !== currentPage && isVideoPlaying) {
-        console.log("Repeat mode active and video playing: preventing page change");
+    // Prevent page changes only in single-page repeat mode while video is playing
+    if (currentRepeatMode === 'page' && pageNumber !== currentPage && isVideoPlaying) {
+        console.log("Single-page repeat mode active: preventing page change");
         return;
     }
 
     const oldCurrentPage = currentPage; // Store the current page before updating
     currentPage = pageNumber;
 
-    // Stop any active repeat loop when page changes
-    if (repeatLoopInterval) {
+    // Stop any active repeat loop when page changes, but only if not in 'range' mode
+    if (repeatLoopInterval && currentRepeatMode !== 'range') {
         toggleRepeatMode(currentRepeatMode); // Calling with current mode stops it
     }
 
@@ -1709,31 +1730,34 @@ function initializeRepeatControls() {
 }
 
 function toggleRepeatMode(mode, startTime = null, endTime = null) {
-    if (!getCurrentPlayer() || !timestamps) { // Use helper function
-        console.warn("Player not ready or timestamps not loaded for repeat mode.");
-        return;
+    if (!timestamps) {
+        console.warn("Timestamps not loaded yet – repeat mode cannot start.");
+        return false;
     }
+    // Proceed even if player is not ready; the loop interval will wait until it becomes ready.
 
     // Stop any existing loop
     if (repeatLoopInterval) {
         clearInterval(repeatLoopInterval);
         repeatLoopInterval = null;
-        isRepeatModeActive = false; // Reset repeat mode state
-        // Remove highlighting from repeat-related buttons
-        document.querySelectorAll('#pagination-controls button').forEach(btn => {
+        // Remove highlighting from all repeat buttons
+        document.querySelectorAll('#pagination-controls button.active-repeat').forEach(btn => {
             btn.classList.remove('active-repeat');
         });
-        if (currentRepeatMode) {
-            document.getElementById(`repeat-${currentRepeatMode}-btn`).classList.remove('active-repeat');
-        }
     }
 
-    // If the same mode is clicked again, it means stop
+    // If the same mode is clicked again:
     if (currentRepeatMode === mode) {
-        currentRepeatMode = null;
-        isRepeatModeActive = false; // Reset repeat mode state
-        console.log("Repeat mode stopped.");
-        return;
+        // For page or sentence mode, clicking again turns it off.
+        // For range mode, if new start/end provided, treat as update instead of turning off.
+        if (mode === 'range' && startTime !== null) {
+            console.log("Updating existing range repeat with new parameters.");
+        } else {
+            currentRepeatMode = null;
+            isRepeatModeActive = false;
+            console.log("Repeat mode stopped.");
+            return isRepeatModeActive; // Return false for 'off'
+        }
     }
 
     // Set new mode and activate repeat state
@@ -1742,7 +1766,10 @@ function toggleRepeatMode(mode, startTime = null, endTime = null) {
     console.log(`Starting repeat mode: ${mode}`);
 
     // Highlight the active button
-    document.getElementById(`repeat-${mode}-btn`).classList.add('active-repeat');
+    const repeatBtn = document.getElementById(`repeat-${mode}-btn`);
+    if (repeatBtn) {
+        repeatBtn.classList.add('active-repeat');
+    }
 
     if (mode === 'page') {
         const currentPageInfo = pageInfo[currentPage - 1];
@@ -1752,105 +1779,101 @@ function toggleRepeatMode(mode, startTime = null, endTime = null) {
         if (!firstParagraphElement || !firstParagraphElement.dataset.timestamp) {
             console.warn("No timestamped paragraphs found on the current page for page repeat.");
             currentRepeatMode = null;
-            return;
+            return false;
         }
 
         repeatLoopStartTime = parseInt(firstParagraphElement.dataset.timestamp, 10);
 
-        // Find the end time for the page repeat
-        const nextPageInfo = pageInfo[currentPage]; // pageInfo is 0-indexed, currentPage is 1-indexed
+        const nextPageInfo = pageInfo[currentPage];
         if (nextPageInfo) {
             repeatLoopEndTime = timestamps[nextPageInfo.firstGlobalParagraphIndex].timestamp;
         } else {
-            // Last page, repeat until end of video
-            repeatLoopEndTime = getCurrentPlayerDuration(); // Use helper function
+            repeatLoopEndTime = getCurrentPlayerDuration();
         }
-        // Add 0.5 second buffer, but don't exceed video duration
-        repeatLoopEndTime = Math.min(repeatLoopEndTime + 0.5, getCurrentPlayerDuration()); // Use helper function
-        console.log(`Page Repeat Calculated: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}`);
+        repeatLoopEndTime = Math.min(repeatLoopEndTime + 0.5, getCurrentPlayerDuration());
 
     } else if (mode === 'sentence') {
-        // Use passed startTime and endTime, or try to determine from highlighted sentence
         if (startTime !== null && endTime !== null) {
             repeatLoopStartTime = startTime;
             repeatLoopEndTime = endTime;
         } else {
-            // Fallback: Try to find a selected sentence to repeat
-            const selectedParagraph = document.querySelector('.lesson-paragraph.current-segment');
-            if (selectedParagraph && selectedParagraph.dataset.timestamp) {
-                repeatLoopStartTime = parseInt(selectedParagraph.dataset.timestamp, 10);
-
-                // Find the global index of the selected paragraph
-                const paragraphsOnPage = Array.from(document.querySelectorAll('.lesson-paragraph'));
-                const selectedParagraphIndexInPage = paragraphsOnPage.indexOf(selectedParagraph);
-
-                const currentPageInfo = pageInfo[currentPage - 1];
-                const globalParagraphOffset = currentPageInfo ? currentPageInfo.firstGlobalParagraphIndex : 0;
-
-                const selectedParagraphGlobalIndex = globalParagraphOffset + selectedParagraphIndexInPage;
-
-                let paragraphEndTime;
-                // Option 1: If there is a next global timestamp, use it as the end time
-                if (selectedParagraphGlobalIndex + 1 < timestamps.length) {
-                    paragraphEndTime = timestamps[selectedParagraphGlobalIndex + 1].timestamp;
-                } else {
-                    // Option 2: If it's the last timestamped paragraph on the current page,
-                    // use the timestamp of the first paragraph on the next page as the end.
-                    const nextPageInfo = pageInfo[currentPage]; // currentPage is 1-indexed
-                    if (nextPageInfo && timestamps[nextPageInfo.firstGlobalParagraphIndex]) { // Ensure next page has a timestamp
-                        paragraphEndTime = timestamps[nextPageInfo.firstGlobalParagraphIndex].timestamp;
-                    } else {
-                        // Option 3: It's genuinely the last paragraph of the entire text,
-                        // or no next page exists. Use video duration or a short buffer.
-                        const totalTextParagraphs = allParsedElements.filter(el => el.type === 'separator' && el.text.includes('\n')).length + 1;
-                        if (selectedParagraphGlobalIndex < totalTextParagraphs - 1) {
-                            // It's the last timestamped paragraph, but not the last actual paragraph of text
-                            paragraphEndTime = repeatLoopStartTime + 5; // Loop for 5 seconds (heuristic)
-                        } else {
-                            // It's genuinely the last paragraph of the entire text
-                            paragraphEndTime = getCurrentPlayerDuration(); // Use helper function
-                        }
-                    }
-                }
-                repeatLoopEndTime = paragraphEndTime;
-                console.log(`Sentence Repeat Calculated: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}`);
-
-            } else {
-                console.warn("No specific sentence selected for repeat. Please click a sentence first.");
-                currentRepeatMode = null;
-                document.getElementById(`repeat-${mode}-btn`).classList.remove('active-repeat');
-                return;
-            }
+            console.warn("Sentence repeat called without start or end time.");
+            currentRepeatMode = null;
+            isRepeatModeActive = false;
+            if (repeatBtn) repeatBtn.classList.remove('active-repeat');
+            return isRepeatModeActive;
         }
-        // Add 0.5 second buffer, but don't exceed video duration
-        repeatLoopEndTime = Math.min(repeatLoopEndTime + 0.5, getCurrentPlayerDuration()); // Use helper function
+        repeatLoopEndTime = Math.min(repeatLoopEndTime + 0.5, getCurrentPlayerDuration());
+
+    } else if (mode === 'range') {
+        if (startTime !== null) {
+            repeatLoopStartTime = startTime;
+        } else {
+            console.warn("Range repeat called without a valid start time.");
+            currentRepeatMode = null;
+            isRepeatModeActive = false;
+            if (repeatBtn) repeatBtn.classList.remove('active-repeat');
+            return isRepeatModeActive;
+        }
+        // endTime may be null if the range should extend to the end of the media.
+        if (endTime !== null) {
+            repeatLoopEndTime = endTime;
+        } else {
+            // Defer calculation until the player is ready; set to 0 for now.
+            repeatLoopEndTime = 0;
+        }
     }
 
-    console.log(`Repeat loop set: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}. Current repeat mode: ${currentRepeatMode}`);
+    console.log(`Repeat loop set: Start=${repeatLoopStartTime}, End=${repeatLoopEndTime}.`);
 
     // Start the interval to check playback position
     repeatLoopInterval = setInterval(() => {
-        const currentTime = getCurrentPlayerTime(); // Use helper function
-        if (currentTime >= repeatLoopEndTime) {
-            seekPlayerTo(repeatLoopStartTime); // Use helper function
-            // Ensure it plays if it was paused exactly at the end
-            const player = getCurrentPlayer();
-            if (player && (player === window.player ? player.getPlayerState() !== YT.PlayerState.PLAYING : player.paused)) {
+        // If repeat mode was deactivated elsewhere, clean up
+        if (!isRepeatModeActive || currentRepeatMode !== 'range') {
+            clearInterval(repeatLoopInterval);
+            repeatLoopInterval = null;
+            return;
+        }
+
+        const player = getCurrentPlayer();
+        if (!player) return; // Wait until player is ready
+
+        // If the end time was unknown when repeat started (0 or null), set it now.
+        if (!repeatLoopEndTime || repeatLoopEndTime <= 0) {
+            repeatLoopEndTime = getCurrentPlayerDuration();
+            console.log("Updated repeatLoopEndTime to:", repeatLoopEndTime);
+            return; // Wait for next interval to check again
+        }
+
+        const currentTime = getCurrentPlayerTime();
+        // Add a small buffer (0.5s) to handle cases where we slightly overshoot the end time
+        if (currentTime >= repeatLoopEndTime - 0.5) {
+            console.log(`Looping from ${currentTime}s back to ${repeatLoopStartTime}s`);
+            
+            // First seek to the start time
+            seekPlayerTo(repeatLoopStartTime);
+            
+            // Force play if not already playing
+            const isPlaying = player === window.player ? 
+                player.getPlayerState() === YT.PlayerState.PLAYING : 
+                !player.paused;
+                
+            if (!isPlaying) {
                 if (player === window.player) {
                     player.playVideo();
                 } else {
-                    player.play();
+                    player.play().catch(e => console.error("Error restarting player:", e));
                 }
             }
             
-            // Reset highlighting to first paragraph
-            const paragraphs = document.querySelectorAll('.lesson-paragraph');
-            paragraphs.forEach(p => p.classList.remove('current-segment'));
-            if (paragraphs[0]) {
-                paragraphs[0].classList.add('current-segment');
-            }
+            // Force update the current segment to ensure highlighting updates
+            setTimeout(() => {
+                updateCurrentSegment(repeatLoopStartTime);
+            }, 50);
         }
     }, 100); // Check every 100ms
+
+    return isRepeatModeActive;
 }
 
 // --- New Video Sync Functions ---
@@ -1996,21 +2019,15 @@ function initializeHtml5PlayerSync() {
     // Attach event listeners for HTML5 media player
     html5Player.addEventListener('play', () => {
         isVideoPlaying = true;
-        if (!isRepeatModeActive) {
-            startVideoSync();
-        }
+        startVideoSync();
     });
     html5Player.addEventListener('pause', () => {
         isVideoPlaying = false;
-        if (!isRepeatModeActive) {
-            stopVideoSync();
-        }
+        stopVideoSync();
     });
     html5Player.addEventListener('ended', () => {
         isVideoPlaying = false;
-        if (!isRepeatModeActive) {
-            stopVideoSync();
-        }
+        stopVideoSync();
     });
 
     // Attach timestamp click listeners for HTML5 player as well
@@ -2117,6 +2134,14 @@ function updateCurrentSegment(time) {
 
 // New function to handle highlighting separately
 function updateHighlighting(currentSegmentGlobalIndex) {
+    // Highlighting is allowed if autoscroll is on OR repeat mode is active.
+    // Auto-pagination is ONLY allowed if autoscroll is on.
+    const allowHighlight = isAutoscrollEnabled || isRepeatModeActive;
+    const allowPagination = isAutoscrollEnabled;
+
+    if (!allowHighlight) {
+        return; // Exit if no highlighting is needed at all
+    }
     // Determine which page this segment belongs to
     let targetPage = currentPage;
     let foundPage = false;
@@ -2137,14 +2162,14 @@ function updateHighlighting(currentSegmentGlobalIndex) {
         return;
     }
 
-    // If we need to change pages and repeat mode is active, don't change pages
-    if (targetPage !== currentPage && isRepeatModeActive) {
-        console.log("updateHighlighting: Page change prevented due to repeat mode");
+    // Prevent auto-pagination only for single-page repeat mode
+    if (targetPage !== currentPage && currentRepeatMode === 'page') {
+        console.log("updateHighlighting: Page change prevented due to single-page repeat mode");
         return;
     }
 
-    // If we need to change pages for highlighting
-    if (targetPage !== currentPage) {
+    // If we need to change pages for highlighting, and pagination is allowed
+    if (targetPage !== currentPage && allowPagination) {
         console.log(`updateHighlighting: Page change needed for highlighting. Current: ${currentPage}, Target: ${targetPage}`);
         renderPage(targetPage);
         return;
@@ -2169,6 +2194,7 @@ function updateHighlighting(currentSegmentGlobalIndex) {
 
 // New function to handle auto-scrolling separately
 function handleAutoScrolling(currentSegmentGlobalIndex) {
+    if (!isAutoscrollEnabled) return; // Autoscroll is disabled by the user
     // Check if user has recently scrolled
     const now = Date.now();
     const userRecentlyScrolled = (now - lastUserScrollTime) < USER_SCROLL_TIMEOUT;

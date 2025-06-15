@@ -8,6 +8,11 @@ body {
     min-height: 100vh;
 }
 
+/* Fix for Bootstrap modal backdrop z-index issue */
+.modal-backdrop {
+  z-index: -1;
+}
+
 /* --- Top Navigation Tab Styling --- */
 .main-nav {
     background-color: #e9ecef; /* Light grey background for the bar */
@@ -22,9 +27,7 @@ body {
     display: flex; /* Arrange items horizontally */
 }
 
-.main-nav li {
-    /* No specific style needed for li itself */
-}
+
 
 .main-nav a {
     display: inline-block;
@@ -120,15 +123,7 @@ body {
     color: white;
 }
 
-/* Status-specific button colors */
-.status-btn[data-status="0"] {}
-.status-btn[data-status="1"] {}
-.status-btn[data-status="2"] {}
-.status-btn[data-status="3"] {}
-.status-btn[data-status="4"] {}
-.status-btn[data-status="5"] {}
-.status-btn[data-status="6"] {}
-.status-btn[data-status="7"] {}
+/* Status-specific button colors can be added here later if needed */
 
 #edit-translation {
     width: 100%;
@@ -603,6 +598,13 @@ body {
 }
 
 /* Stats Area */
+
+/* Style for the autoscroll button when ON */
+#autoscroll-toggle-btn.autoscroll-on {
+    background-color: #fd7e14; /* Bootstrap orange */
+    color: white;
+    border-color: #fd7e14;
+}
 .lesson-stats {
     display: flex;
     align-items: center;
@@ -1640,7 +1642,9 @@ footer p {
     font-size: 0.8em; /* Reduced font size for dictionary content */
     zoom: 0.75; /* Further zoom out content by 25% */
     -moz-transform: scale(0.75); /* Firefox compatibility */
+    transform: scale(0.75);
     -moz-transform-origin: top left; /* Firefox compatibility */
+    transform-origin: top left;
 }
 
 /* --- Modal Styling (Generic) --- */
@@ -1797,7 +1801,9 @@ footer p {
     font-size: 0.8em; /* Reduced font size for dictionary content */
     zoom: 0.75; /* Further zoom out content by 25% */
     -moz-transform: scale(0.75); /* Firefox compatibility */
+    transform: scale(0.75);
     -moz-transform-origin: top left; /* Firefox compatibility */
+    transform-origin: top left;
 }
 
 /* --- General Modal Styles (Existing, ensure no conflict) --- */
@@ -1975,4 +1981,11 @@ button#save-translation:hover {
     color: #0d6efd;
 }
 /* --- End Dock-Style Navigation Bar --- */
+
+/* Style for any repeat button when active */
+.active-repeat {
+    background-color: #198754; /* Bootstrap success green */
+    color: white;
+    border-color: #198754;
+}
 
