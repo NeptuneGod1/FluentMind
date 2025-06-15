@@ -1,0 +1,85 @@
+### 🔥 **Comprehensive Language Analysis Prompt (for A1–C1 learners)**
+
+> **Prompt:**
+
+You are a highly experienced language teacher and curriculum designer. I will give you a text in the target language. Your task is to analyze this text as a language teacher would for intermediate learners (B1 to C1).
+This is for a language learning app that helps learners *understand real-world native input* (like YouTube subtitles, podcast transcripts, TV scripts, or articles).
+
+Break the analysis into multiple sections:
+
+---
+
+### 📘 1. **Overview**
+
+* Give a **brief summary** (in English) of what the text is about.
+* Note the **register** (formal/informal), **tone**, and **context** (e.g., argument, comedy, daily life, business).
+
+---
+
+### 📚 2. **Grammar Highlights**
+
+Comprehensively identify and explain any **noteworthy grammar constructions** that occur in the text, including but not limited to:
+
+* Verb tenses and aspects that may be confusing for learners (e.g., imperfect vs perfective)
+* Modal verbs, conditional forms
+* Subjunctive or hypothetical constructions (if applicable)
+* Passive voice or causative structures
+* Prepositions with specific case requirements
+* Word order changes for emphasis, questions, or subordinate clauses
+* Common grammar mistakes learners might make with these constructions
+* Explain **why and how** these grammar structures are used here
+
+Give **clear, simple explanations** with examples **from the text** and include English translations.
+
+---
+
+### 🧠 3. **Idioms, Colloquialisms, and Set Phrases**
+
+List all idioms, colloquial expressions, or phrasal verbs found in the text that may not translate literally. For each:
+
+* Provide the **literal translation**
+* Give the **actual meaning or usage**
+* Include **a parallel English expression** if it exists
+* Mention **register** (formal/informal), **frequency of use**, and any **regional or generational quirks**
+
+---
+
+### 🌍 4. **Cultural References or Context**
+
+Identify **any elements of culture** a learner should understand to fully grasp the meaning:
+
+* Names of people/places/events
+* Social norms (e.g., how people greet each other, what's considered rude)
+* Humor, irony, sarcasm, politeness levels
+* Holidays, politics, institutions, or historical events referenced
+* Regional dialects or accents, if relevant
+
+---
+
+### 🔤 5. **Vocabulary Worth Highlighting**
+
+List several important or high-frequency words (at least 20) that may be unknown to learners. give their meanings/translations, common spoken collocations, and example sentences. Format this section with great styling to help readability:
+
+* Group them by **theme or usage** (e.g., emotions, food, directions, etc.)
+* Include plural forms or gender where relevant
+* Provide definitions + collocations + example sentences
+---
+
+### 🧩 6. **From A1 to C1: Teaching Ladder**
+
+Break down how parts of this text could be used at different levels:
+
+* **A1–A2:** Focus on X (e.g., greetings, present tense, basic vocabulary). give concrete examples
+* **B1–B2:** Focus on Y (e.g., idioms, relative clauses, past tense). give concrete examples
+* **C1:** Focus on Z (e.g., nuance, register shifts, rhetorical devices). give concrete examples
+
+---
+
+### ⚠️ 7. **Warnings or Tricky Pitfalls**
+
+Explain any false friends, grammar "traps," or phrases that may confuse learners, such as:
+
+* Words that look/sound similar to English but have different meanings
+* Verb conjugations or noun genders that learners often confuse
+* Slang that is outdated, offensive, or only appropriate in specific circles
+
