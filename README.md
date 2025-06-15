@@ -1,4 +1,15 @@
-# ModernLWT3: Language Learning App
+# FluentMind: Interactive Language Learning App
+
+FluentMind is an advanced language learning application that combines reading, listening, and interactive exercises to help you learn languages more effectively. It features synchronized text and video, intelligent vocabulary tracking, and AI-powered grammar analysis.
+
+## 🚀 Key Features
+
+- **Interactive Reader**: Read texts with synchronized audio/video
+- **Vocabulary Builder**: Save and review words with spaced repetition
+- **Grammar Analysis**: Get AI-powered grammar explanations
+- **Multi-Language Support**: Learn multiple languages with custom configurations
+- **Video Integration**: Sync text with YouTube videos
+- **Smart Player Controls**: Advanced playback controls for language learning
 
 ## 🚀 Quick Start (No Coding Needed)
 
@@ -21,6 +32,75 @@
 - The app will be ready to use when you see the homepage.
 
 ---
+
+## 🎮 Player Controls Guide
+
+### Playback Controls
+- **Play/Pause (▶️/⏸️)**: Start or pause playback
+- **Volume (🔊)**: Adjust volume or mute
+- **Progress Bar**: Click to seek to a specific position
+
+### Learning-Specific Features
+
+#### Repeat Modes
+- **Repeat Sentence (⏮️)**: Click to repeat the current sentence
+- **Repeat Page (↩️)**: Click to repeat the current page
+- **Repeat Range (↔️)**: 
+  - Click to set a custom range of pages to repeat
+  - The button turns green when active
+  - Click again to turn off repeat mode
+
+#### Playback Speed
+- Adjust playback speed (0.5x - 2.0x) to match your listening level
+
+#### Autoscroll (⇅)**
+- Toggle autoscroll to automatically follow along with the text
+- When enabled, the button turns orange
+- When disabled, auto-pagination and line highlighting are also disabled
+
+## 📚 Grammar Analysis
+
+FluentMind offers AI-powered grammar analysis for lessons and stories:
+
+1. **Accessing Grammar Notes**
+   - Click "View Grammar Notes" on any lesson or story
+   - Select your preferred AI model (Gemini, ChatGPT, or Claude)
+   - The system will generate detailed grammar explanations
+
+2. **Regenerating Notes**
+   - Use the dropdown to switch between AI models
+   - Click "Regenerate" to get a new analysis
+
+## 🔑 API Key Setup
+
+To use all features, you'll need to set up API keys for the AI services:
+
+### 1. OpenAI (ChatGPT)
+1. Get an API key from [OpenAI's website](https://platform.openai.com/api-keys)
+2. Set it as an environment variable:
+   ```bash
+   set OPENAI_API_KEY=your-api-key-here  # Windows
+   # or
+   export OPENAI_API_KEY=your-api-key-here  # macOS/Linux
+   ```
+
+### 2. Google Gemini
+1. Get an API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Set it as an environment variable:
+   ```bash
+   set GEMINI_API_KEY=your-api-key-here  # Windows
+   # or
+   export GEMINI_API_KEY=your-api-key-here  # macOS/Linux
+   ```
+
+### 3. Anthropic (Claude)
+1. Get an API key from [Anthropic's Console](https://console.anthropic.com/settings/keys)
+2. Set it as an environment variable:
+   ```bash
+   set ANTHROPIC_API_KEY=your-api-key-here  # Windows
+   # or
+   export ANTHROPIC_API_KEY=your-api-key-here  # macOS/Linux
+   ```
 
 ## ❓ Troubleshooting
 - **Python Not Installed?**
